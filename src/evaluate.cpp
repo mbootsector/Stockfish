@@ -152,8 +152,8 @@ namespace {
 
   // Hanging contains a bonus for each enemy hanging piece
   const Score Hanging = S(23, 20);
-  const Score KingPawnThreatOne  = S(0, 85);
-  const Score KingPawnThreatMany = S(0, 170);
+  const Score KingPawnThreatOne  = S(0, 48);
+  const Score KingPawnThreatMany = S(0, 96);
 
   #undef S
 
