@@ -115,7 +115,9 @@ namespace {
       S( 13, 29), S( 18, 38), S(20, 40), S(21, 41), S(22, 41), S(22, 41),
       S( 22, 41), S( 23, 41), S(24, 41), S(25, 41), S(25, 41), S(25, 41),
       S( 25, 41), S( 25, 41), S(25, 41), S(25, 41), S(25, 41), S(25, 41),
-      S( 25, 41), S( 25, 41), S(25, 41), S(25, 41) }
+      S( 25, 41), S( 25, 41), S(25, 41), S(25, 41) },
+    { S(  0,-32), S(  0,-16), S( 0,  0), S( 0, 12), S( 0, 21), S( 0, 27), // Kings
+	  S(  0, 30), S(  0, 31), S( 0, 32) }
   };
 
   // Outpost[PieceType][Square] contains bonuses for knights and bishops outposts,
@@ -394,6 +396,10 @@ namespace {
 
     // King shelter and enemy pawns storm
     Score score = ei.pi->king_safety<Us>(pos, ksq);
+
+    b = pos.attacks_from<KING>(ksq) & ~ei.attackedBy[Them][ALL_PIECES] & ~pos.pieces(Us);
+    int mob = popcount<Max15>(b);
+    score += MobilityBonus[KING][mob];
 
     // Main king safety evaluation
     if (ei.kingAttackersCount[Them])
