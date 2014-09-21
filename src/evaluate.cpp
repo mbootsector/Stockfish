@@ -397,7 +397,7 @@ namespace {
     // King shelter and enemy pawns storm
     Score score = ei.pi->king_safety<Us>(pos, ksq);
 
-    b = pos.attacks_from<KING>(ksq) & ~ei.attackedBy[Them][ALL_PIECES] & ~pos.pieces(Us);
+    b = pos.attacks_from<KING>(ksq) & ~ei.attackedBy[Them][ALL_PIECES] & ~pos.pieces();
     int mob = popcount<Max15>(b);
     score += MobilityBonus[KING][mob];
 
