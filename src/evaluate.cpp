@@ -565,11 +565,10 @@ namespace {
 
         // Base bonus based on rank
         Value mbonus = Value(17 * rr), ebonus = Value(7 * (rr + r + 1));
+        Square blockSq = s + pawn_push(Us);
 
         if (rr)
         {
-            Square blockSq = s + pawn_push(Us);
-
             // Adjust bonus based on the king's proximity
             ebonus +=  square_distance(pos.king_square(Them), blockSq) * 5 * rr
                      - square_distance(pos.king_square(Us  ), blockSq) * 2 * rr;
@@ -614,6 +613,13 @@ namespace {
 
         if (pos.count<PAWN>(Us) < pos.count<PAWN>(Them))
             ebonus += ebonus / 4;
+
+        if ((file_of(s) <= FILE_B || file_of(s) >= FILE_G) &&
+            (adjacent_files_bb(file_of(s)) & ei.pi->passed_pawns(Us) & (DistanceRingsBB[s][0] | DistanceRingsBB[s][1]))) {
+            // Connected passed pawns are a dangerous long term threat
+            mbonus +=  square_distance(pos.king_square(Them), blockSq) * 5 * (r + 5)
+                     - square_distance(pos.king_square(Us  ), blockSq) * 2 * (r + 5);
+        }
 
         score += make_score(mbonus, ebonus);
     }
