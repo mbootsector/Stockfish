@@ -614,8 +614,7 @@ namespace {
         if (pos.count<PAWN>(Us) < pos.count<PAWN>(Them))
             ebonus += ebonus / 4;
 
-        if ((file_of(s) <= FILE_B || file_of(s) >= FILE_G) &&
-            (adjacent_files_bb(file_of(s)) & ei.pi->passed_pawns(Us) & (DistanceRingsBB[s][0] | DistanceRingsBB[s][1]))) {
+        if (adjacent_files_bb(file_of(s)) & ei.pi->passed_pawns(Us) & (DistanceRingsBB[s][0] | DistanceRingsBB[s][1])) {
             // Connected passed pawns are a dangerous long term threat
             mbonus +=  square_distance(pos.king_square(Them), blockSq) * 5 * (r + 5)
                      - square_distance(pos.king_square(Us  ), blockSq) * 2 * (r + 5);
