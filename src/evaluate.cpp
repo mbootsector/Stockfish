@@ -616,7 +616,7 @@ namespace {
 
         if (adjacent_files_bb(file_of(s)) & ei.pi->passed_pawns(Us)) {
             // Connected passed pawns are a dangerous long term threat
-            mbonus +=  file_distance(pos.king_square(Them), blockSq) * 2 * (r + 2);
+            mbonus += file_distance(pos.king_square(Them), blockSq) * 8;
         }
 
         score += make_score(mbonus, ebonus);
