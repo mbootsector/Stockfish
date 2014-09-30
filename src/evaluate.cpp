@@ -615,6 +615,11 @@ namespace {
         if (pos.count<PAWN>(Us) < pos.count<PAWN>(Them))
             ebonus += ebonus / 4;
 
+        if ((ei.attackedBy[Them][ALL_PIECES] & s) && !(ei.attackedBy[Us][ALL_PIECES] & s)) {
+            mbonus /= 2;
+            ebonus /= 2;
+        }
+
         score += make_score(mbonus, ebonus);
     }
 
