@@ -416,6 +416,9 @@ namespace {
                      - mg_value(score) / 32
                      - !pos.count<QUEEN>(Them) * 15;
 
+        if (ei.kingAttackersCount[Them] == 1 && attackUnits > 0)
+            attackUnits /= 2;
+
         // Analyse the enemy's safe queen contact checks. Firstly, find the
         // undefended squares around the king that are attacked by the enemy's
         // queen...
