@@ -560,7 +560,7 @@ namespace {
     const Value mbonus_r[6] = {
          V(0), V(0), V(34), V(134), V(268), V(340)
     };
-   
+  
     Bitboard b, squaresToQueen, defendedSquares, unsafeSquares;
     Score score = SCORE_ZERO;
 
