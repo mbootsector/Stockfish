@@ -557,7 +557,10 @@ namespace {
   Score evaluate_passed_pawns(const Position& pos, const EvalInfo& ei) {
 
     const Color Them = (Us == WHITE ? BLACK : WHITE);
-
+    const Value mbonus_r[6] = {
+         V(0), V(0), V(34), V(134), V(268), V(340)
+    };
+   
     Bitboard b, squaresToQueen, defendedSquares, unsafeSquares;
     Score score = SCORE_ZERO;
 
@@ -573,7 +576,7 @@ namespace {
         int rr = r * (r - 1);
 
         // Base bonus based on rank
-        Value mbonus = Value(17 * rr), ebonus = Value(7 * (rr + r + 1));
+        Value mbonus = mbonus_r[r], ebonus = Value(7 * (rr + r + 1));
 
         if (rr)
         {
