@@ -296,10 +296,12 @@ namespace {
                 ei.kingAdjacentZoneAttacksCount[Us] += popcount<Max15>(bb);
         }
 
-        if (Pt == QUEEN)
+        if (Pt == QUEEN) {
             b &= ~(  ei.attackedBy[Them][KNIGHT]
                    | ei.attackedBy[Them][BISHOP]
                    | ei.attackedBy[Them][ROOK]);
+            b &= Us == WHITE ? 0xffffffffffffff00 : 0x00ffffffffffffff; // Do not include first rank.
+        }
 
         int mob = Pt != QUEEN ? popcount<Max15>(b & mobilityArea[Us])
                               : popcount<Full >(b & mobilityArea[Us]);
