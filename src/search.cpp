@@ -728,7 +728,7 @@ moves_loop: // When in check and at SpNode search starts from here
     Move followupmoves[] = { Followupmoves[pos.piece_on(prevOwnMoveSq)][prevOwnMoveSq].first,
                              Followupmoves[pos.piece_on(prevOwnMoveSq)][prevOwnMoveSq].second };
 
-    MovePicker mp(pos, ttMove, depth, History, CounterMovesHistory, countermoves, followupmoves, ss);
+    MovePicker mp(pos, ttMove, depth, History, CounterMovesHistory, followupmoves, ss);
     CheckInfo ci(pos);
     value = bestValue; // Workaround a bogus 'uninitialized' warning under gcc
     improving =   ss->staticEval >= (ss-2)->staticEval
@@ -1333,7 +1333,7 @@ moves_loop: // When in check and at SpNode search starts from here
     *pv = MOVE_NONE;
   }
 
-  // update_stats() updates killers, history, countermoves and followupmoves stats after a fail-high
+  // update_stats() updates killers, history, followupmoves stats after a fail-high
   // of a quiet move.
 
   void update_stats(const Position& pos, Stack* ss, Move move, Depth depth, Move* quiets, int quietsCnt) {
