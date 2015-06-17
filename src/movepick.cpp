@@ -58,6 +58,16 @@ namespace {
       return *begin;
   }
 
+  int captureScore [7][8] = {
+    // Captured: EP-Pawn Pawn Knight Bishop Rook Queen Capturing
+    {  0,  0,  0,  0,  0,  0 },
+    { 13, 13, 17, 15, 23, 29 }, // Pawn
+    {  0,  4, 19, 20, 18, 30 }, // Knight
+    {  0,  3, 10, 22, 16, 28 }, // Bishop
+    {  0,  5,  8, 11, 21, 26 }, // Rook
+    {  0,  2,  6,  9,  7, 27 }, // Queen
+    {  0, 12, 14, 24, 25, 31 }  // King
+  };
 } // namespace
 
 
@@ -148,6 +158,12 @@ void MovePicker::score<CAPTURES>() {
   // has been picked up in pick_move_from_list(). This way we save some SEE
   // calls in case we get a cutoff.
   for (auto& m : *this)
+      m.value = Value(captureScore[type_of(pos.moved_piece(m))][type_of(pos.piece_on(to_sq(m)))]);
+}
+
+template<>
+void MovePicker::score<QCAPTURES>() {
+  for (auto& m : *this)
       m.value =  PieceValue[MG][pos.piece_on(to_sq(m))]
                - 200 * relative_rank(pos.side_to_move(), to_sq(m));
 }
@@ -191,10 +207,15 @@ void MovePicker::generate_next_stage() {
 
   switch (++stage) {
 
-  case GOOD_CAPTURES: case QCAPTURES_1: case QCAPTURES_2:
+  case GOOD_CAPTURES:
   case PROBCUT_CAPTURES: case RECAPTURES:
       endMoves = generate<CAPTURES>(pos, moves);
       score<CAPTURES>();
+      break;
+
+  case QCAPTURES_1: case QCAPTURES_2:
+      endMoves = generate<CAPTURES>(pos, moves);
+      score<QCAPTURES>();
       break;
 
   case KILLERS:
