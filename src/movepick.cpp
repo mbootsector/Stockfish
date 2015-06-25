@@ -58,19 +58,6 @@ namespace {
       return *begin;
   }
 
-
-  int captureScore[RANK_NB][PIECE_TYPE_NB] {
-    // EP   P   N   B   R   Q   K
-    {   3,  0, 17, 20, 23, 33,  0   },  // 0
-    {   3, 11, 22, 27, 31, 39,  0   },  // 1
-    {   3,  9, 18, 26, 30, 38,  0   },  // 2
-    {   3,  5, 15, 24, 29, 37,  0   },  // 3
-    {   3,  4, 12, 19, 28, 36,  0   },  // 4
-    {   3,  3,  8, 14, 25, 35,  0   },  // 5
-    {   3,  2,  7, 13, 21, 34,  0   },  // 6
-    {   3,  0,  6, 10, 16, 32,  0   }   // 7
-  };
-
 } // namespace
 
 
@@ -142,6 +129,7 @@ MovePicker::MovePicker(const Position& p, Move ttm, const HistoryStats& h, const
   endMoves += (ttMove != MOVE_NONE);
 }
 
+
 /// score() assign a numerical value to each move in a move list. The moves with
 /// highest values will be picked first.
 template<>
@@ -159,10 +147,9 @@ void MovePicker::score<CAPTURES>() {
   // badCaptures[] array, but instead of doing it now we delay until the move
   // has been picked up in pick_move_from_list(). This way we save some SEE
   // calls in case we get a cutoff.
-  for (auto& m : *this)
-//      m.value =  PieceValue[MG][pos.piece_on(to_sq(m))]
-//               - 200 * relative_rank(pos.side_to_move(), to_sq(m));
-      m.value = Value(captureScore[relative_rank(pos.side_to_move(), to_sq(m))][type_of(pos.piece_on(to_sq(m)))]);
+	for (auto& m : *this)
+		m.value = PieceValue[MG][pos.piece_on(to_sq(m))]
+			  - 200 * relative_rank(pos.side_to_move(), to_sq(m));
 }
 
 template<>

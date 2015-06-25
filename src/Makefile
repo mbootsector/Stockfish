@@ -24,7 +24,7 @@
 UNAME = $(shell uname)
 
 ### Executable name
-EXE = stockfish
+EXE = stockfish.exe
 
 ### Installation dir definitions
 PREFIX = /usr/local
@@ -151,9 +151,11 @@ endif
 ifeq ($(COMP),gcc)
 	comp=gcc
 	CXX=g++
-	CXXFLAGS += -pedantic -Wextra -Wshadow
+	CXXFLAGS += -pedantic -Wno-long-long -Wextra -Wshadow
 	ifneq ($(UNAME),Darwin)
 	   LDFLAGS += -Wl,--no-as-needed
+	else
+	   LDFLAGS += -Wl
 	endif
 endif
 
@@ -173,7 +175,7 @@ endif
 ifeq ($(COMP),clang)
 	comp=clang
 	CXX=clang++
-	CXXFLAGS += -pedantic -Wextra -Wshadow
+	CXXFLAGS += -pedantic -Wno-long-long -Wextra -Wshadow
 	ifeq ($(UNAME),Darwin)
 		CXXFLAGS += -std=c++0x -stdlib=libc++
 		DEPENDFLAGS += -std=c++0x -stdlib=libc++
@@ -368,11 +370,11 @@ help:
 
 .PHONY: build profile-build
 build:
-	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) config-sanity
+#	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) config-sanity
 	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) all
 
 profile-build:
-	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) config-sanity
+#	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) config-sanity
 	@echo ""
 	@echo "Step 0/4. Preparing for profile build."
 	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) $(profile_prepare)

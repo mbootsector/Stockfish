@@ -34,6 +34,7 @@
 #include "tt.h"
 #include "uci.h"
 #include "syzygy/tbprobe.h"
+#include "stats.h"
 
 namespace Search {
 
@@ -135,6 +136,7 @@ namespace {
   HistoryStats History;
   CounterMovesHistoryStats CounterMovesHistory;
   MovesStats Countermoves;
+  MyStats SearchStats;
 
   template <NodeType NT, bool SpNode>
   Value search(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth, bool cutNode);
@@ -180,9 +182,61 @@ void Search::init() {
 }
 
 
-/// Search::reset() clears all search memory, to obtain reproducible search results
 
+const string PieceStrings[PIECE_TYPE_NB] = {
+	"NO_PIECE",
+	"PAWN", "KNIGHT", "BISHOP", "ROOK", "QUEEN", "KING",
+	""
+};
+
+string getRowName(PieceType attacker, PieceType victim) {
+
+	string s = PieceStrings[attacker] + "-";
+	s += PieceStrings[victim];
+	return s;
+}
+
+string getRowNameRank(PieceType attacker, int rank) {
+
+	string s = PieceStrings[attacker] + "-";
+	s += to_string(rank);
+	return s;
+}
+
+
+/// Search::reset() clears all search memory, to obtain reproducible search results
 void Search::reset () {
+
+  // Set column and row names for the .csv
+
+  SearchStats.setColumnName(0, "v >= b");
+  SearchStats.setColumnName(1, "v < b");
+  SearchStats.setColumnName(2, "total");
+  SearchStats.setColumnName(3, "sts v >= b");
+  SearchStats.setColumnName(4, "sts v < b");
+  SearchStats.setColumnName(5, "sts total");
+
+/*
+  // MVV-LVA setup
+  int n = 0;
+  for (int i = 1; i < 7; i++) {
+	  for (int j = 1; j < 7; j++) {
+		  string s = getRowName((PieceType)i, (PieceType)j);
+		  SearchStats.setRowName(n++, s);
+	  }
+  }
+*/
+
+  // MVV-rank setup
+  int n = 0;
+  for (int i = 1; i < 7; i++) {
+	  for (int j = 0; j < 8; j++) {
+		  string s = getRowNameRank((PieceType)i, j);
+		  SearchStats.setRowName(n++, s);
+	  }
+  }
+
+  SearchStats.writeCSV("moveorder");
 
   TT.clear();
   History.clear();
@@ -943,6 +997,8 @@ moves_loop: // When in check and at SpNode search starts from here
       // Step 14. Make the move
       pos.do_move(move, st, givesCheck);
 
+	  uint64_t nodesBefore = pos.nodes_searched();
+
       // Step 15. Reduced depth search (LMR). If the move fails high it will be
       // re-searched at full depth.
       if (    depth >= 3 * ONE_PLY
@@ -1007,10 +1063,37 @@ moves_loop: // When in check and at SpNode search starts from here
                                        : - search<PV, false>(pos, ss+1, -beta, -alpha, newDepth, false);
       }
 
+	  PieceType capturedType = pos.captured_piece_type();
+
       // Step 17. Undo move
       pos.undo_move(move);
 
-      assert(value > -VALUE_INFINITE && value < VALUE_INFINITE);
+	  bool addStats = pos.capture(move) && capturedType != NO_PIECE_TYPE && depth >= 3;
+	  if (addStats) {
+		  uint64_t nodes = pos.nodes_searched() - nodesBefore;
+		  string s = getRowNameRank(capturedType, relative_rank(pos.side_to_move(), to_sq(move)));
+//		  string s = getRowName(type_of(pos.moved_piece(move)), capturedType);
+		  SearchStats.increment("total", s);
+		  SearchStats.increment("sts total", s, nodes);
+
+		  if (value >= beta) {
+			  SearchStats.increment("v >= b", s);
+			  SearchStats.increment("sts v >= b", s, nodes);
+			  /*
+			  if (type_of(pos.moved_piece(move)) == PAWN && capturedType == ROOK) {
+				  Square from = from_sq(move);
+				  Square to = to_sq(move);
+				  printf("%s %d %d\n%s\n", s.c_str(), from, to, pos.pretty().c_str());
+			  }
+			  */
+		  }
+		  else {
+			  SearchStats.increment("v < b", s);
+			  SearchStats.increment("sts v < b", s, nodes);
+		  }
+	  }
+
+	  assert(value > -VALUE_INFINITE && value < VALUE_INFINITE);
 
       // Step 18. Check for new best move
       if (SpNode)
@@ -1054,9 +1137,10 @@ moves_loop: // When in check and at SpNode search starts from here
               rm.score = -VALUE_INFINITE;
       }
 
-      if (value > bestValue)
+
+	  if (value > bestValue)
       {
-          bestValue = SpNode ? splitPoint->bestValue = value : value;
+		  bestValue = SpNode ? splitPoint->bestValue = value : value;
 
           if (value > alpha)
           {
@@ -1077,13 +1161,14 @@ moves_loop: // When in check and at SpNode search starts from here
               {
                   assert(value >= beta); // Fail high
 
-                  if (SpNode)
+				  if (SpNode)
                       splitPoint->cutoff = true;
-
                   break;
               }
           }
       }
+	  else {
+	  }
 
       if (!SpNode && !captureOrPromotion && move != bestMove && quietCount < 64)
           quietsSearched[quietCount++] = move;
@@ -1306,16 +1391,17 @@ moves_loop: // When in check and at SpNode search starts from here
 
       ss->currentMove = move;
 
-      // Make and search the move
+	  // Make and search the move
       pos.do_move(move, st, givesCheck);
       value = givesCheck ? -qsearch<NT,  true>(pos, ss+1, -beta, -alpha, depth - ONE_PLY)
                          : -qsearch<NT, false>(pos, ss+1, -beta, -alpha, depth - ONE_PLY);
-      pos.undo_move(move);
+
+	  pos.undo_move(move);
 
       assert(value > -VALUE_INFINITE && value < VALUE_INFINITE);
-
-      // Check for new best move
-      if (value > bestValue)
+	  
+	  // Check for new best move
+	  if (value > bestValue)
       {
           bestValue = value;
 
