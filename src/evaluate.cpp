@@ -407,6 +407,8 @@ namespace {
         }
 
         // Analyse the enemy's safe distance checks for sliders and knights
+        int checkAttackUnits = 0;
+
         safe = ~(ei.attackedBy[Us][ALL_PIECES] | pos.pieces(Them));
 
         b1 = pos.attacks_from<ROOK  >(ksq) & safe;
@@ -415,22 +417,24 @@ namespace {
         // Enemy queen safe checks
         b = (b1 | b2) & ei.attackedBy[Them][QUEEN];
         if (b)
-            attackUnits += QueenCheck * popcount<Max15>(b);
+            checkAttackUnits += QueenCheck * popcount<Max15>(b);
 
         // Enemy rooks safe checks
         b = b1 & ei.attackedBy[Them][ROOK];
         if (b)
-            attackUnits += RookCheck * popcount<Max15>(b);
+            checkAttackUnits += RookCheck * popcount<Max15>(b);
 
         // Enemy bishops safe checks
         b = b2 & ei.attackedBy[Them][BISHOP];
         if (b)
-            attackUnits += BishopCheck * popcount<Max15>(b);
+            checkAttackUnits += BishopCheck * popcount<Max15>(b);
 
         // Enemy knights safe checks
         b = pos.attacks_from<KNIGHT>(ksq) & ei.attackedBy[Them][KNIGHT] & safe;
         if (b)
-            attackUnits += KnightCheck * popcount<Max15>(b);
+            checkAttackUnits += KnightCheck * popcount<Max15>(b);
+
+        attackUnits += ei.kingAttackersCount[Them] == 1 ? checkAttackUnits / 2 : checkAttackUnits;
 
         // Finally, extract the king danger score from the KingDanger[]
         // array and subtract the score from evaluation.
