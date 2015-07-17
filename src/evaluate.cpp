@@ -488,11 +488,11 @@ namespace {
     {
         b = defended & (ei.attackedBy[Us][KNIGHT] | ei.attackedBy[Us][BISHOP]);
         while (b)
-            score += Threat[Defended][Minor][type_of(pos.piece_on(pop_lsb(&b)))];
+            score += Threat[Defended][Minor][type_of(pos.piece_on(pop_lsb(&b)))] / 2;
 
         b = defended & (ei.attackedBy[Us][ROOK]);
         while (b)
-            score += Threat[Defended][Major][type_of(pos.piece_on(pop_lsb(&b)))];
+            score += Threat[Defended][Major][type_of(pos.piece_on(pop_lsb(&b)))] / 2;
     }
 
     // Enemies not defended by a pawn and under our attack
@@ -505,11 +505,25 @@ namespace {
     {
         b = weak & (ei.attackedBy[Us][KNIGHT] | ei.attackedBy[Us][BISHOP]);
         while (b)
-            score += Threat[Weak][Minor][type_of(pos.piece_on(pop_lsb(&b)))];
+            score += Threat[Weak][Minor][type_of(pos.piece_on(pop_lsb(&b)))] / 2;
 
         b = weak & (ei.attackedBy[Us][ROOK] | ei.attackedBy[Us][QUEEN]);
-        while (b)
-            score += Threat[Weak][Major][type_of(pos.piece_on(pop_lsb(&b)))];
+        while (b) {
+            Square s = pop_lsb(&b);
+            PieceType pt = type_of(pos.piece_on(s));
+            if (pt <= ROOK) {
+              defended = ei.attackedBy[Them][BISHOP] | ei.attackedBy[Them][KNIGHT];
+              if (!(ei.attackedBy[Us][ROOK] & s)) // Only our queen is attacking
+                defended |= ei.attackedBy[Them][ROOK];
+              if (defended & s)
+                score += Threat[Weak][Major][pt] / 2;
+              else
+                score += Threat[Weak][Major][pt];
+            }
+            else {
+              score += Threat[Weak][Major][pt];
+            }
+        }
 
         b = weak & ~ei.attackedBy[Them][ALL_PIECES];
         if (b)
