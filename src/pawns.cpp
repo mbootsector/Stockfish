@@ -176,8 +176,6 @@ namespace {
         if (passed && !doubled)
             e->passedPawns[Us] |= s;
 
-//        Score previousScore = score;
-
         // Score this pawn
         if (isolated)
             score -= Isolated[opposed][f];
@@ -199,13 +197,6 @@ namespace {
 
         if (backward | isolated)
           backwardOrIsolated |= s;
-/*
-        Score thisPawnScore = score - previousScore;
-        printf("PAWN %3d %4d,%4d. i=%d b=%d s=%d c=%d d=%d l=%d p=%d ph=%d\n", s,
-                               mg_value(thisPawnScore), eg_value(thisPawnScore),
-                               !!isolated, !!backward, !!supported, !!connected,
-                               !!doubled, !!lever, !!passed, !!phalanx);
-*/
     }
 
     b = e->semiopenFiles[Us] ^ 0xFF;
