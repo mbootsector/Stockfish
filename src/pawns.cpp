@@ -116,6 +116,8 @@ namespace {
     Bitboard ourPawns   = pos.pieces(Us  , PAWN);
     Bitboard theirPawns = pos.pieces(Them, PAWN);
 
+    Bitboard backwardOrIsolated = 0;
+
     e->passedPawns[Us] = 0;
     e->kingSquares[Us] = SQ_NONE;
     e->semiopenFiles[Us] = 0xFF;
@@ -174,6 +176,8 @@ namespace {
         if (passed && !doubled)
             e->passedPawns[Us] |= s;
 
+//        Score previousScore = score;
+
         // Score this pawn
         if (isolated)
             score -= Isolated[opposed][f];
@@ -192,14 +196,26 @@ namespace {
 
         if (lever)
             score += Lever[relative_rank(Us, s)];
+
+        if (backward | isolated)
+          backwardOrIsolated |= s;
+/*
+        Score thisPawnScore = score - previousScore;
+        printf("PAWN %3d %4d,%4d. i=%d b=%d s=%d c=%d d=%d l=%d p=%d ph=%d\n", s,
+                               mg_value(thisPawnScore), eg_value(thisPawnScore),
+                               !!isolated, !!backward, !!supported, !!connected,
+                               !!doubled, !!lever, !!passed, !!phalanx);
+*/
     }
 
     b = e->semiopenFiles[Us] ^ 0xFF;
     e->pawnSpan[Us] = b ? int(msb(b) - lsb(b)) : 0;
 
     // Center binds: Two pawns controlling the same central square
-    b = shift_bb<Right>(ourPawns) & shift_bb<Left>(ourPawns) & CenterBindMask[Us];
-    score += popcount<Max15>(b) * CenterBind;
+    if ((backwardOrIsolated & CenterBindMask[Us]) == 0) {
+      b = shift_bb<Right>(ourPawns) & shift_bb<Left>(ourPawns) & CenterBindMask[Us];
+      score += popcount<Max15>(b) * CenterBind;
+    }
 
     return score;
   }
