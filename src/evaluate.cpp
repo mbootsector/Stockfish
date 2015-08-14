@@ -261,13 +261,18 @@ namespace {
 
         ei.attackedBy[Us][ALL_PIECES] |= ei.attackedBy[Us][Pt] |= b;
 
+        int mobilityFactor = 3;
+
         if (b & ei.kingRing[Them])
         {
+            mobilityFactor++;
             ei.kingAttackersCount[Us]++;
             ei.kingAttackersWeight[Us] += KingAttackWeights[Pt];
             Bitboard bb = b & ei.attackedBy[Them][KING];
-            if (bb)
+            if (bb) {
+                mobilityFactor++;
                 ei.kingAdjacentZoneAttacksCount[Us] += popcount<Max15>(bb);
+            }
         }
 
         if (Pt == QUEEN)
@@ -277,7 +282,10 @@ namespace {
 
         int mob = popcount<Pt == QUEEN ? Full : Max15>(b & mobilityArea[Us]);
 
-        mobility[Us] += MobilityBonus[Pt][mob];
+        if (Pt == QUEEN)
+          mobility[Us] += (MobilityBonus[Pt][mob] * mobilityFactor) / 4;
+        else
+          mobility[Us] += MobilityBonus[Pt][mob];
 
         if (Pt == BISHOP || Pt == KNIGHT)
         {
