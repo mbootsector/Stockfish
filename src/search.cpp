@@ -847,8 +847,13 @@ moves_loop: // When in check and at SpNode search starts from here
                   ? ci.checkSquares[type_of(pos.piece_on(from_sq(move)))] & to_sq(move)
                   : pos.gives_check(move, ci);
 
-      // Step 12. Extend checks
+      // Step 12. Extentions
       if (givesCheck && pos.see_sign(move) >= VALUE_ZERO)
+          extension = ONE_PLY;
+      else if (   depth >= 5 * ONE_PLY 
+               && to_sq(move) == to_sq((ss-1)->currentMove)
+               && ss->staticEval + PawnValueMg <= beta
+               && ss->staticEval + pos.see(move) >= beta)
           extension = ONE_PLY;
 
       // Singular extension search. If all moves but one fail low on a search of
