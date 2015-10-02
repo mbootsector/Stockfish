@@ -100,6 +100,8 @@ struct ThreadBase : public std::thread {
   Spinlock spinlock;
   ConditionVariable sleepCondition;
   volatile bool exit = false;
+  HistoryStats History;
+  MovesStats Countermoves;
 };
 
 
