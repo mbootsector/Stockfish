@@ -44,16 +44,16 @@ struct TTEntry {
   void save(Key k, Value v, Bound b, Depth d, Move m, Value ev, uint8_t g) {
 
     // Preserve any existing move for the same position
-    if (m || (k >> 48) != key16)
+    if (m || k != key64)
         move16 = (uint16_t)m;
 
     // Don't overwrite more valuable entries
-    if (  (k >> 48) != key16
+    if (  k != key64
         || d > depth8 - 2
      /* || g != (genBound8 & 0xFC) // Matching non-zero keys are already refreshed by probe() */
         || b == BOUND_EXACT)
     {
-        key16     = (uint16_t)(k >> 48);
+        key64     = k;
         value16   = (int16_t)v;
         eval16    = (int16_t)ev;
         genBound8 = (uint8_t)(g | b);
@@ -64,7 +64,7 @@ struct TTEntry {
 private:
   friend class TranspositionTable;
 
-  uint16_t key16;
+  Key      key64;
   uint16_t move16;
   int16_t  value16;
   int16_t  eval16;
@@ -82,14 +82,13 @@ private:
 class TranspositionTable {
 
   static const int CacheLineSize = 64;
-  static const int ClusterSize = 3;
+  static const int ClusterSize = 4;
 
   struct Cluster {
     TTEntry entry[ClusterSize];
-    char padding[2]; // Align to the cache line size
   };
 
-  static_assert(sizeof(Cluster) == CacheLineSize / 2, "Cluster size incorrect");
+  static_assert(sizeof(Cluster) == CacheLineSize, "Cluster size incorrect");
 
 public:
  ~TranspositionTable() { free(mem); }
