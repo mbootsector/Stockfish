@@ -580,7 +580,7 @@ namespace {
 
         if (   relative_rank(Us, s) >= RANK_5
             && (file_of(s) == FILE_D || file_of(s) == FILE_E))
-            mbonus += Value(27);
+            mbonus += Value(54);
 
         if (rr)
         {
