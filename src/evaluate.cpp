@@ -578,6 +578,10 @@ namespace {
 
         Value mbonus = Passed[MG][r], ebonus = Passed[EG][r];
 
+        if (   relative_rank(Us, s) >= RANK_5
+            && (file_of(s) == FILE_D || file_of(s) == FILE_E))
+            mbonus += Value(27);
+
         if (rr)
         {
             Square blockSq = s + pawn_push(Us);
