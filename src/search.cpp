@@ -289,7 +289,6 @@ void MainThread::think() {
       for (Thread* th : Threads)
       {
           th->maxPly = 0;
-          th->rootDepth = DEPTH_ZERO;
           th->searching = true;
           if (th != this)
           {
@@ -329,7 +328,7 @@ void MainThread::think() {
   // Check if there are threads with a better score than main thread.
   Thread* bestThread = this;
   for (Thread* th : Threads)
-      if (   th->completedDepth > bestThread->completedDepth
+      if (   th->completedDepth >= bestThread->completedDepth
           && th->rootMoves[0].score > bestThread->rootMoves[0].score)
         bestThread = th;
 
@@ -356,6 +355,7 @@ void Thread::search(bool isMainThread) {
   Stack stack[MAX_PLY+4], *ss = stack+2; // To allow referencing (ss-2) and (ss+2)
   Value bestValue, alpha, beta, delta;
   Move easyMove = MOVE_NONE;
+  Depth depth = DEPTH_ZERO;
 
   std::memset(ss-2, 0, 5 * sizeof(Stack));
 
@@ -382,12 +382,8 @@ void Thread::search(bool isMainThread) {
   multiPV = std::min(multiPV, rootMoves.size());
 
   // Iterative deepening loop until requested to stop or target depth reached
-  while (++rootDepth < DEPTH_MAX && !Signals.stop && (!Limits.depth || rootDepth <= Limits.depth))
+  while (++depth < DEPTH_MAX && !Signals.stop && (!Limits.depth || depth <= Limits.depth))
   {
-      // Set up the new depth for the helper threads
-      if (!isMainThread)
-          rootDepth = Threads.main()->rootDepth + Depth(int(2.2 * log(1 + this->idx)));
-
       // Age out PV variability metric
       if (isMainThread)
           BestMoveChanges *= 0.5;
@@ -401,7 +397,7 @@ void Thread::search(bool isMainThread) {
       for (PVIdx = 0; PVIdx < multiPV && !Signals.stop; ++PVIdx)
       {
           // Reset aspiration window starting size
-          if (rootDepth >= 5 * ONE_PLY)
+          if (depth >= 5 * ONE_PLY)
           {
               delta = Value(18);
               alpha = std::max(rootMoves[PVIdx].previousScore - delta,-VALUE_INFINITE);
@@ -413,7 +409,7 @@ void Thread::search(bool isMainThread) {
           // high/low anymore.
           while (true)
           {
-              bestValue = ::search<Root>(rootPos, ss, alpha, beta, rootDepth, false);
+              bestValue = ::search<Root>(rootPos, ss, alpha, beta, depth, false);
 
               // Bring the best move to the front. It is critical that sorting
               // is done with a stable algorithm because all the values but the
@@ -440,7 +436,7 @@ void Thread::search(bool isMainThread) {
                   && multiPV == 1
                   && (bestValue <= alpha || bestValue >= beta)
                   && Time.elapsed() > 3000)
-                  sync_cout << UCI::pv(rootPos, rootDepth, alpha, beta) << sync_endl;
+                  sync_cout << UCI::pv(rootPos, depth, alpha, beta) << sync_endl;
 
               // In case of failing low/high increase aspiration window and
               // re-search, otherwise exit the loop.
@@ -479,17 +475,17 @@ void Thread::search(bool isMainThread) {
                         << " time " << Time.elapsed() << sync_endl;
 
           else if (PVIdx + 1 == multiPV || Time.elapsed() > 3000)
-              sync_cout << UCI::pv(rootPos, rootDepth, alpha, beta) << sync_endl;
+              sync_cout << UCI::pv(rootPos, depth, alpha, beta) << sync_endl;
       }
 
       if (!Signals.stop)
-          completedDepth = rootDepth;
+          completedDepth = depth;
 
       if (!isMainThread)
           continue;
 
       // If skill level is enabled and time is up, pick a sub-optimal best move
-      if (skill.enabled() && skill.time_to_pick(rootDepth))
+      if (skill.enabled() && skill.time_to_pick(depth))
           skill.pick_best(multiPV);
 
       // Have we found a "mate in x"?
@@ -504,7 +500,7 @@ void Thread::search(bool isMainThread) {
           if (!Signals.stop && !Signals.stopOnPonderhit)
           {
               // Take some extra time if the best move has changed
-              if (rootDepth > 4 * ONE_PLY && multiPV == 1)
+              if (depth > 4 * ONE_PLY && multiPV == 1)
                   Time.pv_instability(BestMoveChanges);
 
               // Stop the search if only one legal move is available or all

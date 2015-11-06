@@ -73,7 +73,6 @@ struct Thread : public ThreadBase {
 
   Position rootPos;
   Search::RootMoveVector rootMoves;
-  Depth rootDepth;
   HistoryStats history;
   MovesStats counterMoves;
   Depth completedDepth;
