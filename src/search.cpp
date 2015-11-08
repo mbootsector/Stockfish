@@ -559,7 +559,7 @@ namespace {
     Depth extension, newDepth, predictedDepth;
     Value bestValue, value, ttValue, eval, nullValue, futilityValue;
     bool ttHit, inCheck, givesCheck, singularExtensionNode, improving;
-    bool captureOrPromotion, doFullDepthSearch;
+    bool captureOrPromotion, doFullDepthSearch, probCutFailed;
     int moveCount, quietCount;
 
     // Step 1. Initialize node
@@ -568,6 +568,7 @@ namespace {
     moveCount = quietCount =  ss->moveCount = 0;
     bestValue = -VALUE_INFINITE;
     ss->ply = (ss-1)->ply + 1;
+    probCutFailed = false;
 
     // Used to send selDepth info to GUI
     if (PvNode && thisThread->maxPly < ss->ply)
@@ -777,13 +778,14 @@ namespace {
                 pos.undo_move(move);
                 if (value >= rbeta)
                     return value;
+                probCutFailed = true;
             }
     }
 
     // Step 10. Internal iterative deepening (skipped when in check)
-    if (    depth >= (PvNode ? 5 * ONE_PLY : 8 * ONE_PLY)
-        && !ttMove
-        && (PvNode || ss->staticEval + 256 >= beta))
+    if (   !ttMove
+        && (probCutFailed || (depth >= (PvNode ? 5 * ONE_PLY : 8 * ONE_PLY)
+        && (PvNode || ss->staticEval + 256 >= beta))))
     {
         Depth d = depth - 2 * ONE_PLY - (PvNode ? DEPTH_ZERO : depth / 4);
         ss->skipEarlyPruning = true;
