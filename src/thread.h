@@ -66,6 +66,7 @@ struct Thread : public std::thread {
   HistoryStats history;
   MovesStats counterMoves;
   Depth completedDepth;
+  bool failedLowAtRoot;
 };
 
 

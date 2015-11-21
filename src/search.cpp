@@ -335,7 +335,7 @@ void MainThread::search() {
   Thread* bestThread = this;
   for (Thread* th : Threads)
       if (   th->completedDepth > bestThread->completedDepth
-          && th->rootMoves[0].score > bestThread->rootMoves[0].score)
+          && th->failedLowAtRoot == false)
         bestThread = th;
 
   // The score will be used for controlling fail lows on the next search.
@@ -372,6 +372,7 @@ void Thread::search() {
   bestValue = delta = alpha = -VALUE_INFINITE;
   beta = VALUE_INFINITE;
   completedDepth = DEPTH_ZERO;
+  failedLowAtRoot = false;
 
   if (isMainThread)
   {
@@ -458,6 +459,7 @@ void Thread::search() {
               {
                   beta = (alpha + beta) / 2;
                   alpha = std::max(bestValue - delta, -VALUE_INFINITE);
+                  failedLowAtRoot = true;
                   if (isMainThread)
                   {
                       Signals.failedLowAtRoot = true;
@@ -471,8 +473,11 @@ void Thread::search() {
               }
               else
               {
-                  if (isMainThread && !FirstSearchOfGame && bestValue >= FailLowResolveScore)
-                      Signals.failedLowAtRoot = false;
+                  if (bestValue >= FailLowResolveScore) {
+                    failedLowAtRoot = false;
+                    if (isMainThread && !FirstSearchOfGame)
+                        Signals.failedLowAtRoot = false;
+                  }
                   break;
               }
 
