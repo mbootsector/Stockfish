@@ -69,6 +69,7 @@ public:
   MovesStats counterMoves;
   Depth completedDepth;
   std::atomic_bool resetCalls;
+  bool helperFailedLowAtRoot;
 };
 
 

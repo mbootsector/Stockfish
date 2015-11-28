@@ -328,9 +328,8 @@ void MainThread::search() {
   // Check if there are threads with a better score than main thread.
   Thread* bestThread = this;
   for (Thread* th : Threads)
-      if (   th->completedDepth > bestThread->completedDepth
-          && th->rootMoves[0].score > bestThread->rootMoves[0].score)
-        bestThread = th;
+      if (!th->helperFailedLowAtRoot && th->completedDepth > bestThread->completedDepth)
+          bestThread = th;
 
   // Send new PV when needed.
   // FIXME: Breaks multiPV, and skill levels
@@ -396,6 +395,8 @@ void Thread::search() {
       // all the move scores except the (new) PV are set to -VALUE_INFINITE.
       for (RootMove& rm : rootMoves)
           rm.previousScore = rm.score;
+
+      helperFailedLowAtRoot = true; // Assume the worst.
 
       // MultiPV loop. We perform a full root search for each PV line
       for (PVIdx = 0; PVIdx < multiPV && !Signals.stop; ++PVIdx)
@@ -481,9 +482,6 @@ void Thread::search() {
           else if (PVIdx + 1 == multiPV || Time.elapsed() > 3000)
               sync_cout << UCI::pv(rootPos, rootDepth, alpha, beta) << sync_endl;
       }
-
-      if (!Signals.stop)
-          completedDepth = rootDepth;
 
       if (!isMainThread)
           continue;
@@ -571,7 +569,8 @@ namespace {
     bool ttHit, inCheck, givesCheck, singularExtensionNode, improving;
     bool captureOrPromotion, doFullDepthSearch;
     int moveCount, quietCount;
-
+    int rootAlpha = alpha;
+    
     // Step 1. Initialize node
     Thread* thisThread = pos.this_thread();
     inCheck = pos.checkers();
@@ -1035,6 +1034,10 @@ moves_loop: // When in check search starts from here
       {
           RootMove& rm = *std::find(thisThread->rootMoves.begin(),
                                     thisThread->rootMoves.end(), move);
+
+          thisThread->completedDepth = depth;
+          if (value > rootAlpha)
+              thisThread->helperFailedLowAtRoot = false;
 
           // PV move or new best move ?
           if (moveCount == 1 || value > alpha)
