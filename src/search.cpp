@@ -569,7 +569,6 @@ namespace {
     bool ttHit, inCheck, givesCheck, singularExtensionNode, improving;
     bool captureOrPromotion, doFullDepthSearch;
     int moveCount, quietCount;
-    int rootAlpha = alpha;
     
     // Step 1. Initialize node
     Thread* thisThread = pos.this_thread();
@@ -1036,7 +1035,7 @@ moves_loop: // When in check search starts from here
                                     thisThread->rootMoves.end(), move);
 
           thisThread->completedDepth = depth;
-          if (value > rootAlpha)
+          if (value > alpha)
               thisThread->helperFailedLowAtRoot = false;
 
           // PV move or new best move ?
