@@ -164,8 +164,11 @@ namespace {
         // Score this pawn
         Score baseValue = Us == BLACK ? -PSQT::psq[Us][PAWN][s] : PSQT::psq[Us][PAWN][s];
 
-        if (doubled)
-            score -= (baseValue / 9) / distance<Rank>(s, frontmost_sq(Us, doubled));
+        if (doubled) {
+            Score penalty = baseValue / 9;
+            penalty += make_score(0, eg_value(penalty) / 2);
+            score -= penalty / distance<Rank>(s, frontmost_sq(Us, doubled));
+        }
 
         if (isolated || backward)
             score -= baseValue / (opposed ? 7 : 4);
