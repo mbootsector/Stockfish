@@ -289,7 +289,7 @@ void MainThread::search() {
       for (Thread* th : Threads)
       {
           th->maxPly = 0;
-          th->rootDepth = DEPTH_ZERO;
+          th->completedDepth = DEPTH_ZERO;
           if (th != this)
           {
               th->rootPos = Position(rootPos, th);
@@ -328,8 +328,7 @@ void MainThread::search() {
   // Check if there are threads with a better score than main thread.
   Thread* bestThread = this;
   for (Thread* th : Threads)
-      if (   th->completedDepth > bestThread->completedDepth
-          && th->rootMoves[0].score > bestThread->rootMoves[0].score)
+      if (th->completedDepth > bestThread->completedDepth)
         bestThread = th;
 
   // Send new PV when needed.
@@ -382,11 +381,17 @@ void Thread::search() {
   multiPV = std::min(multiPV, rootMoves.size());
 
   // Iterative deepening loop until requested to stop or target depth reached
-  while (++rootDepth < DEPTH_MAX && !Signals.stop && (!Limits.depth || rootDepth <= Limits.depth))
+  while (true)
   {
-      // Set up the new depth for the helper threads
-      if (!isMainThread)
-          rootDepth = std::min(DEPTH_MAX - ONE_PLY, Threads.main()->rootDepth + Depth(int(2.2 * log(1 + this->idx))));
+      // Set this thread to search for the deepest iteration so far plus one.
+      Depth rootDepth = DEPTH_ZERO;
+      for (Thread* th : Threads)
+          if (th->completedDepth > rootDepth)
+              rootDepth = th->completedDepth;
+      rootDepth += 1 * ONE_PLY;
+
+      if (!(rootDepth < DEPTH_MAX && !Signals.stop && (!Limits.depth || rootDepth <= Limits.depth)))
+          break;
 
       // Age out PV variability metric
       if (isMainThread)
