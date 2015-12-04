@@ -35,6 +35,8 @@ namespace {
   const double MaxRatio   = 7.0;  // When in trouble, we can step over reserved time with this ratio
   const double StealRatio = 0.33; // However we must not steal time from remaining moves over this ratio
 
+  int SlowMover = 80;
+  TUNE(SlowMover);
 
   // move_importance() is a skew-logistic function based on naive statistical
   // analysis of "how many games are still undecided after n half-moves". Game
@@ -84,7 +86,7 @@ void TimeManagement::init(Search::LimitsType& limits, Color us, int ply)
 {
   int minThinkingTime = Options["Minimum Thinking Time"];
   int moveOverhead    = Options["Move Overhead"];
-  int slowMover       = Options["Slow Mover"];
+  int slowMover       = SlowMover;
   int npmsec          = Options["nodestime"];
 
   // If we have to play in 'nodes as time' mode, then convert from time
