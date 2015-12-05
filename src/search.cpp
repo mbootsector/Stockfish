@@ -565,7 +565,7 @@ namespace {
     StateInfo st;
     TTEntry* tte;
     Key posKey;
-    Move ttMove, move, excludedMove, bestMove;
+    Move ttMove, ttMove2, move, excludedMove, bestMove;
     Depth extension, newDepth, predictedDepth;
     Value bestValue, value, ttValue, eval, nullValue, futilityValue;
     bool ttHit, inCheck, givesCheck, singularExtensionNode, improving;
@@ -618,7 +618,7 @@ namespace {
 
     assert(0 <= ss->ply && ss->ply < MAX_PLY);
 
-    ss->currentMove = ss->ttMove = (ss+1)->excludedMove = bestMove = MOVE_NONE;
+    ss->currentMove = ss->ttMove = ss->ttMove2 = (ss+1)->excludedMove = bestMove = MOVE_NONE;
     (ss+1)->skipEarlyPruning = false; (ss+1)->reduction = DEPTH_ZERO;
     (ss+2)->killers[0] = (ss+2)->killers[1] = MOVE_NONE;
 
@@ -631,6 +631,7 @@ namespace {
     ttValue = ttHit ? value_from_tt(tte->value(), ss->ply) : VALUE_NONE;
     ss->ttMove = ttMove =  RootNode ? thisThread->rootMoves[thisThread->PVIdx].pv[0]
                          : ttHit    ? tte->move() : MOVE_NONE;
+    ss->ttMove2 = ttMove2 = ttHit ? tte->move2() : MOVE_NONE;
 
     // At non-PV nodes we check for an early TT cutoff
     if (  !PvNode
@@ -709,6 +710,9 @@ namespace {
 
     if (ss->skipEarlyPruning)
         goto moves_loop;
+
+    if (ttMove == MOVE_NONE)
+        ttMove = ttMove2;
 
     // Step 6. Razoring (skipped when in check)
     if (   !PvNode
@@ -878,6 +882,8 @@ moves_loop: // When in check search starts from here
                   ? ci.checkSquares[type_of(pos.piece_on(from_sq(move)))] & to_sq(move)
                   : pos.gives_check(move, ci);
 
+      bool isTtMove = move == ttMove || move == ttMove2;
+
       // Step 12. Extend checks
       if (givesCheck && pos.see_sign(move) >= VALUE_ZERO)
           extension = ONE_PLY;
@@ -888,7 +894,7 @@ moves_loop: // When in check search starts from here
       // on all the other moves but the ttMove and if the result is lower than
       // ttValue minus a margin then we extend the ttMove.
       if (    singularExtensionNode
-          &&  move == ttMove
+          &&  isTtMove
           && !extension
           &&  pos.legal(move, ci.pinned))
       {
@@ -908,6 +914,7 @@ moves_loop: // When in check search starts from here
 
       // Step 13. Pruning at shallow depth
       if (   !RootNode
+          && !isTtMove
           && !captureOrPromotion
           && !inCheck
           && !givesCheck
@@ -963,6 +970,7 @@ moves_loop: // When in check search starts from here
       // Step 15. Reduced depth search (LMR). If the move fails high it will be
       // re-searched at full depth.
       if (    depth >= 3 * ONE_PLY
+          && !isTtMove
           &&  moveCount > 1
           && !captureOrPromotion
           &&  move != ss->killers[0]

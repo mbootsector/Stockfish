@@ -40,6 +40,7 @@ struct Stack {
   int ply;
   Move currentMove;
   Move ttMove;
+  Move ttMove2;
   Move excludedMove;
   Move killers[2];
   Depth reduction;
