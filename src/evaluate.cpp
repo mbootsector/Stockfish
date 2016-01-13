@@ -352,7 +352,7 @@ namespace {
             // pawn-protected minor pieces is treated as semi-open.
             if (ei.pi->semiopen_file(Us, file_of(s))) {
                 int filetype = !!ei.pi->semiopen_file(Them, file_of(s));
-                if (filetype == 1 && (file_bb(s) & pos.pieces(Them, KNIGHT, BISHOP) & ei.pi->pawn_attacks(Them) & ei.pi->pawn_attacks_span(Us)))
+                if (filetype == 1 && (file_bb(s) & pos.pieces(Them, KNIGHT, BISHOP) & ei.pi->pawn_attacks(Them) & ~ei.pi->pawn_attacks_span(Us)))
                     filetype = 0;
                 score += RookOnFile[filetype];
             }
