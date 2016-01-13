@@ -23,6 +23,7 @@
 #include <cstring>   // For std::memset
 #include <iomanip>
 #include <sstream>
+#include <iostream>
 
 #include "bitcount.h"
 #include "evaluate.h"
@@ -348,9 +349,14 @@ namespace {
                     score += RookOnPawn * popcount<Max15>(alignedPawns);
             }
 
-            // Bonus when on an open or semi-open file
-            if (ei.pi->semiopen_file(Us, file_of(s)))
-                score += RookOnFile[!!ei.pi->semiopen_file(Them, file_of(s))];
+            // Bonus when on an open or semi-open file. An open file with opponents
+            // pawn-protected minor pieces is treated as semi-open.
+            if (ei.pi->semiopen_file(Us, file_of(s))) {
+                int filetype = !!ei.pi->semiopen_file(Them, file_of(s));
+                if (filetype == 1 && (file_bb(s) & pos.pieces(Them, KNIGHT, BISHOP) & ei.pi->pawn_attacks(Them)))
+                    filetype = 0;
+                score += RookOnFile[filetype];
+            }
 
             // Penalize when trapped by the king, even more if king cannot castle
             else if (mob <= 3)
