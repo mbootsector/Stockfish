@@ -23,6 +23,7 @@
 #include <cstring>   // For std::memset
 #include <iomanip>
 #include <sstream>
+#include <math.h>
 
 #include "bitcount.h"
 #include "evaluate.h"
@@ -124,22 +125,7 @@ namespace {
 
   // MobilityBonus[PieceType][attacked] contains bonuses for middle and end
   // game, indexed by piece type and number of attacked squares in the MobilityArea.
-  const Score MobilityBonus[][32] = {
-    {}, {},
-    { S(-75,-76), S(-56,-54), S(- 9,-26), S( -2,-10), S(  6,  5), S( 15, 11), // Knights
-      S( 22, 26), S( 30, 28), S( 36, 29) },
-    { S(-48,-58), S(-21,-19), S( 16, -2), S( 26, 12), S( 37, 22), S( 51, 42), // Bishops
-      S( 54, 54), S( 63, 58), S( 65, 63), S( 71, 70), S( 79, 74), S( 81, 86),
-      S( 92, 90), S( 97, 94) },
-    { S(-56,-78), S(-25,-18), S(-11, 26), S( -5, 55), S( -4, 70), S( -1, 81), // Rooks
-      S(  8,109), S( 14,120), S( 21,128), S( 23,143), S( 31,154), S( 32,160),
-      S( 43,165), S( 49,168), S( 59,169) },
-    { S(-40,-35), S(-25,-12), S(  2,  7), S(  4, 19), S( 14, 37), S( 24, 55), // Queens
-      S( 25, 62), S( 40, 76), S( 43, 79), S( 47, 87), S( 54, 94), S( 56,102),
-      S( 60,111), S( 70,116), S( 72,118), S( 73,122), S( 75,128), S( 77,130),
-      S( 85,133), S( 94,136), S( 99,140), S(108,157), S(112,158), S(113,161),
-      S(118,174), S(119,177), S(123,191), S(128,199) }
-  };
+  Score MobilityBonus[PIECE_TYPE_NB][32];
 
   // Outpost[knight/bishop][supported by pawn] contains bonuses for knights and
   // bishops outposts, bigger if outpost piece is supported by a pawn.
@@ -892,6 +878,15 @@ std::string Eval::trace(const Position& pos) {
   return ss.str();
 }
 
+void set_mobility(PieceType pt, double eMg, double eEg, double aMg, double aEg, double oMg, double oEg) {
+  const int PtMoves[PIECE_TYPE_NB] = {  0,  0,  8, 13, 14, 27, 8 };
+  for (int i = 0; i <= PtMoves[pt]; i++) {
+      double f = double(i) / double(PtMoves[pt]);
+      MobilityBonus[pt][i] = make_score(int(pow(f, eMg) * aMg + oMg),
+                                        int(pow(f, eEg) * aEg + oEg));
+//      printf("%3d. %d %d\n", i, mg_value(MobilityBonus[pt][i]), eg_value(MobilityBonus[pt][i]));
+  }
+}
 
 /// init() computes evaluation weights, usually at startup
 
@@ -906,4 +901,9 @@ void Eval::init() {
       t = std::min(Peak, std::min(i * i * 27, t + MaxSlope));
       KingDanger[i] = make_score(t / 1000, 0) * Weights[KingSafety];
   }
+
+  set_mobility(KNIGHT, 0.42, 0.57, 116, 114, -80, -77);
+  set_mobility(BISHOP, 0.45, 0.54, 145, 158, -48, -59);
+  set_mobility(ROOK,   0.58, 0.45, 109, 249, -57, -69);
+  set_mobility(QUEEN,  0.60, 0.53, 167, 225, -40, -39);
 }
