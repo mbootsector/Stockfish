@@ -884,6 +884,7 @@ void set_mobility(PieceType pt, double eMg, double eEg, double aMg, double aEg, 
       double f = double(i) / double(PtMoves[pt]);
       MobilityBonus[pt][i] = make_score(int(pow(f, eMg) * aMg + oMg),
                                         int(pow(f, eEg) * aEg + oEg));
+      if (pt == KNIGHT && i == 1) MobilityBonus[pt][i] += make_score(-30, 0);  // Hack.
 //      printf("%3d. %d %d\n", i, mg_value(MobilityBonus[pt][i]), eg_value(MobilityBonus[pt][i]));
   }
 }
@@ -902,8 +903,8 @@ void Eval::init() {
       KingDanger[i] = make_score(t / 1000, 0) * Weights[KingSafety];
   }
 
-  set_mobility(KNIGHT, 0.42, 0.57, 116, 114, -80, -77);
+  set_mobility(KNIGHT, 0.42, 0.62, 111, 105, -75, -76);
   set_mobility(BISHOP, 0.45, 0.54, 145, 158, -48, -59);
-  set_mobility(ROOK,   0.58, 0.45, 109, 249, -57, -69);
+  set_mobility(ROOK,   0.58, 0.65, 109, 249, -57, -69);
   set_mobility(QUEEN,  0.60, 0.53, 167, 225, -40, -39);
 }
