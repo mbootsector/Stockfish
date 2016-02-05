@@ -415,6 +415,9 @@ namespace {
                      - 64 * !pos.count<QUEEN>(Them)
                      - mg_value(score) / 8;
 
+        if (ei.pi->passed_pawns(Us) && pos.count<QUEEN>(Them) == 0)
+            attackUnits /= 2;
+
         // Analyse the enemy's safe queen contact checks. Firstly, find the
         // undefended squares around the king reachable by the enemy queen...
         b = undefended & ei.attackedBy[Them][QUEEN] & ~pos.pieces(Them);
