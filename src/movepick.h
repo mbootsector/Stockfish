@@ -88,6 +88,8 @@ public:
   MovePicker(const Position&, Move, Depth, const HistoryStats&, const CounterMoveStats&, Move, Search::Stack*, bool doFullMoveGen);
 
   Move next_move();
+  void defer(Move m);
+  bool is_doing_deferred_moves();
 
 private:
   template<GenType> void score();
@@ -108,7 +110,8 @@ private:
   int stage;
   ExtMove *endQuiets, *endBadCaptures = moves + MAX_MOVES - 1;
   ExtMove moves[MAX_MOVES], *cur = moves, *endMoves = moves;
-  bool moveIsSearched[MAX_MOVES];
+  Move deferredMoves[MAX_MOVES];  // TODO: Not needed in qsearch. Cache trasher?
+  int deferredMoveCount, currentDeferredMove;
 };
 
 #endif // #ifndef MOVEPICK_H_INCLUDED

@@ -30,7 +30,8 @@
 /// move       16 bit
 /// value      16 bit
 /// eval value 16 bit
-/// generation  6 bit
+/// busy        1 bit
+/// generation  5 bit
 /// bound type  2 bit
 /// depth       8 bit
 
@@ -41,6 +42,10 @@ struct TTEntry {
   Value eval()  const { return (Value)eval16; }
   Depth depth() const { return (Depth)depth8; }
   Bound bound() const { return (Bound)(genBound8 & 0x3); }
+  bool  busy() const  { return (bool)(genBound8 & 0x80); }
+
+  void setBusyFlag()   { genBound8 |= 0x80; }
+  void clearBusyFlag() { genBound8 &= 0x7F; }
 
   void save(Key k, Value v, Bound b, Depth d, Move m, Value ev, uint8_t g) {
 
@@ -57,7 +62,7 @@ struct TTEntry {
         key16     = (uint16_t)(k >> 48);
         value16   = (int16_t)v;
         eval16    = (int16_t)ev;
-        genBound8 = (uint8_t)(g | b);
+        genBound8 = (genBound8 & 0x80) | (uint8_t)(g | b);  // Preserve busy flag.
         depth8    = (int8_t)d;
     }
   }
@@ -95,7 +100,7 @@ class TranspositionTable {
 
 public:
  ~TranspositionTable() { free(mem); }
-  void new_search() { generation8 += 4; } // Lower 2 bits are used by Bound
+  void new_search() { generation8 = (generation8 + 4) & 0x7f; } // Lower 2 bits are used by Bound, high bit is for ABDADA.
   uint8_t generation() const { return generation8; }
   TTEntry* probe(const Key key, bool& found) const;
   int hashfull() const;

@@ -33,7 +33,8 @@ namespace {
     PROBCUT, PROBCUT_CAPTURES,
     RECAPTURE, RECAPTURES,
     STOP,
-    MAIN_SEARCH_FULLGEN, MAIN_SEARCH_FULLGEN_2
+    MAIN_SEARCH_FULLGEN, MAIN_SEARCH_FULLGEN_2,
+    DEFERRED, DEFERRED_2
   };
 
   // Our insertion sort, which is guaranteed to be stable, as it should be
@@ -78,6 +79,7 @@ MovePicker::MovePicker(const Position& p, Move ttm, Depth d, const HistoryStats&
   ttMove = ttm && pos.pseudo_legal(ttm) ? ttm : MOVE_NONE;
   if (stage != MAIN_SEARCH_FULLGEN)
       endMoves += (ttMove != MOVE_NONE);
+  deferredMoveCount = 0;
 }
 
 MovePicker::MovePicker(const Position& p, Move ttm, Depth d,
@@ -352,13 +354,35 @@ Move MovePicker::next_move() {
           return MOVE_NONE;
 
       case MAIN_SEARCH_FULLGEN: case MAIN_SEARCH_FULLGEN_2:
-        move = pick_best(cur++, endMoves);
-        if (cur == endMoves)
-            stage = STOP;
-        return move;
+          move = pick_best(cur++, endMoves);
+          if (cur < endMoves)
+              return move;
+          /* Fallthrough */
+
+      case DEFERRED:
+          currentDeferredMove = 0;
+          cur = endMoves - 1; // Hack, prevents generate_next_stage() calls.
+          stage = DEFERRED_2;
+          /* Fallthrough */
+
+      case DEFERRED_2:
+          if (currentDeferredMove == deferredMoveCount) {
+              stage = STOP;
+              break;
+          }
+          return deferredMoves[currentDeferredMove++];
 
       default:
           assert(false);
       }
   }
+}
+
+
+void MovePicker::defer(Move m) {
+  deferredMoves[deferredMoveCount++] = m;
+}
+
+bool MovePicker::is_doing_deferred_moves() {
+  return stage == DEFERRED_2;
 }

@@ -127,35 +127,6 @@ namespace {
     Move pv[3];
   };
 
-  // Set of rows with half bits set to 1 and half to 0. It is used to allocate
-  // the search depths across the threads.
-  typedef std::vector<int> Row;
-
-  const Row HalfDensity[] = {
-    {0, 1},
-    {1, 0},
-    {0, 0, 1, 1},
-    {0, 1, 1, 0},
-    {1, 1, 0, 0},
-    {1, 0, 0, 1},
-    {0, 0, 0, 1, 1, 1},
-    {0, 0, 1, 1, 1, 0},
-    {0, 1, 1, 1, 0, 0},
-    {1, 1, 1, 0, 0, 0},
-    {1, 1, 0, 0, 0, 1},
-    {1, 0, 0, 0, 1, 1},
-    {0, 0, 0, 0, 1, 1, 1, 1},
-    {0, 0, 0, 1, 1, 1, 1, 0},
-    {0, 0, 1, 1, 1, 1, 0 ,0},
-    {0, 1, 1, 1, 1, 0, 0 ,0},
-    {1, 1, 1, 1, 0, 0, 0 ,0},
-    {1, 1, 1, 0, 0, 0, 0 ,1},
-    {1, 1, 0, 0, 0, 0, 1 ,1},
-    {1, 0, 0, 0, 0, 1, 1 ,1},
-  };
-
-  const size_t HalfDensitySize = std::extent<decltype(HalfDensity)>::value;
-
   EasyMoveManager EasyMove;
   Value DrawValue[COLOR_NB];
   CounterMoveHistoryStats CounterMoveHistory;
@@ -422,15 +393,6 @@ void Thread::search() {
   // Iterative deepening loop until requested to stop or the target depth is reached.
   while (++rootDepth < DEPTH_MAX && !Signals.stop && (!Limits.depth || rootDepth <= Limits.depth))
   {
-      // Set up the new depths for the helper threads skipping on average every
-      // 2nd ply (using a half-density matrix).
-      if (!mainThread)
-      {
-          const Row& row = HalfDensity[(idx - 1) % HalfDensitySize];
-          if (row[(rootDepth + rootPos.game_ply()) % row.size()])
-             continue;
-      }
-
       // Age out PV variability metric
       if (mainThread)
           mainThread->bestMoveChanges *= 0.505, mainThread->failedLow = false;
@@ -872,7 +834,9 @@ moves_loop: // When in check search starts from here
     Move cm = thisThread->counterMoves[pos.piece_on(prevSq)][prevSq];
     const CounterMoveStats& cmh = CounterMoveHistory[pos.piece_on(prevSq)][prevSq];
 
-    MovePicker mp(pos, ttMove, depth, thisThread->history, cmh, cm, ss, depth >= 7 * ONE_PLY);
+    const Depth AbdadaMinDepth = Depth(7);
+
+    MovePicker mp(pos, ttMove, depth, thisThread->history, cmh, cm, ss, depth >= AbdadaMinDepth);
     CheckInfo ci(pos);
     value = bestValue; // Workaround a bogus 'uninitialized' warning under gcc
     improving =   ss->staticEval >= (ss-2)->staticEval
@@ -1003,6 +967,45 @@ moves_loop: // When in check search starts from here
       // Step 14. Make the move
       pos.do_move(move, st, givesCheck);
 
+      // ABDADA.
+      bool doAbdada = Threads.size() > 1 && moveCount > 1 && depth >= AbdadaMinDepth;
+      TTEntry* tteAbdada;
+
+      if (doAbdada) {
+          tteAbdada = TT.probe(pos.key(), ttHit);
+          if (!mp.is_doing_deferred_moves())  // Check busy nodes only during the first pass.
+          {
+              // Test if the move is being searched by other threads.
+              if (ttHit && tteAbdada->busy())
+              {
+                  pos.undo_move(move);
+
+                  ttValue = ttHit ? value_from_tt(tte->value(), ss->ply) : VALUE_NONE;
+                  ttMove =  rootNode ? thisThread->rootMoves[thisThread->PVIdx].pv[0]
+                          : ttHit    ? tte->move() : MOVE_NONE;
+
+                  // At non-PV nodes we check for an early TT cutoff
+                  if (  !PvNode
+                      && ttHit
+                      && tte->depth() >= depth
+                      && ttValue != VALUE_NONE // Possible in case of TT access race
+                      && (ttValue >= beta ? (tte->bound() & BOUND_LOWER)
+                                          : (tte->bound() & BOUND_UPPER)))
+                  {
+                      // If ttMove is quiet, update killers, history, counter move on TT hit
+                      if (ttValue >= beta && ttMove && !pos.capture_or_promotion(ttMove))
+                          update_stats(pos, ss, ttMove, depth, nullptr, 0);
+
+                      return ttValue;
+                  }
+
+                  mp.defer(move);
+                  continue;
+              }
+          }
+          tteAbdada->setBusyFlag();
+      }
+
       // Step 15. Reduced depth search (LMR). If the move fails high it will be
       // re-searched at full depth.
       if (    depth >= 3 * ONE_PLY
@@ -1064,6 +1067,9 @@ moves_loop: // When in check search starts from here
 
       // Step 17. Undo move
       pos.undo_move(move);
+
+      if (doAbdada)
+          tteAbdada->clearBusyFlag();
 
       assert(value > -VALUE_INFINITE && value < VALUE_INFINITE);
 
