@@ -834,9 +834,7 @@ moves_loop: // When in check search starts from here
     Move cm = thisThread->counterMoves[pos.piece_on(prevSq)][prevSq];
     const CounterMoveStats& cmh = CounterMoveHistory[pos.piece_on(prevSq)][prevSq];
 
-    const Depth AbdadaMinDepth = Depth(7);
-
-    MovePicker mp(pos, ttMove, depth, thisThread->history, cmh, cm, ss, depth >= AbdadaMinDepth);
+    MovePicker mp(pos, ttMove, depth, thisThread->history, cmh, cm, ss);
     CheckInfo ci(pos);
     value = bestValue; // Workaround a bogus 'uninitialized' warning under gcc
     improving =   ss->staticEval >= (ss-2)->staticEval
@@ -968,7 +966,7 @@ moves_loop: // When in check search starts from here
       pos.do_move(move, st, givesCheck);
 
       // ABDADA.
-      bool doAbdada = Threads.size() > 1 && moveCount > 1 && depth >= AbdadaMinDepth;
+      bool doAbdada = Threads.size() > 1 && moveCount > 1 && depth >= Depth(3);
       TTEntry* tteAbdada;
 
       if (doAbdada) {
@@ -987,7 +985,7 @@ moves_loop: // When in check search starts from here
                   // At non-PV nodes we check for an early TT cutoff
                   if (  !PvNode
                       && ttHit
-                      && tte->depth() >= depth
+                      && tte->depth() >= newDepth
                       && ttValue != VALUE_NONE // Possible in case of TT access race
                       && (ttValue >= beta ? (tte->bound() & BOUND_LOWER)
                                           : (tte->bound() & BOUND_UPPER)))
@@ -996,7 +994,7 @@ moves_loop: // When in check search starts from here
                       if (ttValue >= beta && ttMove && !pos.capture_or_promotion(ttMove))
                           update_stats(pos, ss, ttMove, depth, nullptr, 0);
 
-                      return ttValue;
+                      return ttValue; // This happens rarely.
                   }
 
                   mp.defer(move);

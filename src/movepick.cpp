@@ -27,14 +27,13 @@ namespace {
 
   enum Stages {
     MAIN_SEARCH, GOOD_CAPTURES, KILLERS, GOOD_QUIETS, BAD_QUIETS, BAD_CAPTURES,
+    DEFERRED, DEFERRED_2,
     EVASION, ALL_EVASIONS,
     QSEARCH_WITH_CHECKS, QCAPTURES_1, CHECKS,
     QSEARCH_WITHOUT_CHECKS, QCAPTURES_2,
     PROBCUT, PROBCUT_CAPTURES,
     RECAPTURE, RECAPTURES,
     STOP,
-    MAIN_SEARCH_FULLGEN, MAIN_SEARCH_FULLGEN_2,
-    DEFERRED, DEFERRED_2
   };
 
   // Our insertion sort, which is guaranteed to be stable, as it should be
@@ -70,15 +69,14 @@ namespace {
 /// ordering is at the current node.
 
 MovePicker::MovePicker(const Position& p, Move ttm, Depth d, const HistoryStats& h,
-                       const CounterMoveStats& cmh, Move cm, Search::Stack* s, bool doFullMoveGen)
+                       const CounterMoveStats& cmh, Move cm, Search::Stack* s)
            : pos(p), history(h), counterMoveHistory(&cmh), ss(s), countermove(cm), depth(d) {
 
   assert(d > DEPTH_ZERO);
 
-  stage = pos.checkers() ? EVASION : (doFullMoveGen ? MAIN_SEARCH_FULLGEN : MAIN_SEARCH);
+  stage = pos.checkers() ? EVASION : MAIN_SEARCH;
   ttMove = ttm && pos.pseudo_legal(ttm) ? ttm : MOVE_NONE;
-  if (stage != MAIN_SEARCH_FULLGEN)
-      endMoves += (ttMove != MOVE_NONE);
+  endMoves += (ttMove != MOVE_NONE);
   deferredMoveCount = 0;
 }
 
@@ -106,6 +104,7 @@ MovePicker::MovePicker(const Position& p, Move ttm, Depth d,
 
   ttMove = ttm && pos.pseudo_legal(ttm) ? ttm : MOVE_NONE;
   endMoves += (ttMove != MOVE_NONE);
+  deferredMoveCount = 0;
 }
 
 MovePicker::MovePicker(const Position& p, Move ttm, const HistoryStats& h, Value th)
@@ -122,6 +121,7 @@ MovePicker::MovePicker(const Position& p, Move ttm, const HistoryStats& h, Value
           && pos.see(ttm) > threshold ? ttm : MOVE_NONE;
 
   endMoves += (ttMove != MOVE_NONE);
+  deferredMoveCount = 0;
 }
 
 
@@ -167,39 +167,6 @@ void MovePicker::score<EVASIONS>() {
           m.value = history[pos.moved_piece(m)][to_sq(m)];
 }
 
-
-template<>
-void MovePicker::score<NON_EVASIONS>() {
-
-  const Value OrderHashMove    = Value(900000000);
-  const Value OrderGoodCapture = Value(800000000);
-  const Value OrderKiller1     = Value(700000002);
-  const Value OrderKiller2     = Value(700000001);
-  const Value OrderCounterMove = Value(700000000);
-  const Value OrderBadCapture  = Value(-90000000);
-
-  for (auto& m : *this) {
-      if (m.move == ttMove) 
-          m.value = OrderHashMove;
-      else if (pos.capture_or_promotion(m.move)) {
-          m.value = pos.see(m.move);
-          if (m.value >= 0)
-              m.value += OrderGoodCapture;
-          else 
-              m.value += OrderBadCapture;
-          m.value -= Value(200 * relative_rank(pos.side_to_move(), to_sq(m)));
-      }
-      else if (m.move == ss->killers[0])
-          m.value = OrderKiller1;
-      else if (m.move == ss->killers[1])
-          m.value = OrderKiller2;
-      else if (m.move == countermove)
-          m.value = OrderCounterMove;
-      else
-          m.value =  history[pos.moved_piece(m)][to_sq(m)]
-                  + (*counterMoveHistory)[pos.moved_piece(m)][to_sq(m)];
-  }
-}
 
 /// generate_next_stage() generates, scores, and sorts the next bunch of moves
 /// when there are no more moves to try for the current stage.
@@ -254,11 +221,6 @@ void MovePicker::generate_next_stage() {
 
   case CHECKS:
       endMoves = generate<QUIET_CHECKS>(pos, moves);
-      break;
-
-  case MAIN_SEARCH_FULLGEN_2:
-      endMoves = generate<NON_EVASIONS>(pos, moves);
-      score<NON_EVASIONS>();
       break;
 
   case EVASION: case QSEARCH_WITH_CHECKS: case QSEARCH_WITHOUT_CHECKS:
@@ -324,7 +286,22 @@ Move MovePicker::next_move() {
           break;
 
       case BAD_CAPTURES:
-          return *cur--;
+          move = *cur--;
+          if (move != MOVE_NONE)
+              return move;
+          /* Fallthrough */
+
+      case DEFERRED:
+          currentDeferredMove = 0;
+          cur = endMoves - 1; // Hack, prevents generate_next_stage() calls.
+          stage = DEFERRED_2;
+          /* Fallthrough */
+
+      case DEFERRED_2:
+          if (currentDeferredMove < deferredMoveCount)
+              return deferredMoves[currentDeferredMove++];
+          stage = STOP;
+          break;
 
       case ALL_EVASIONS: case QCAPTURES_1: case QCAPTURES_2:
           move = pick_best(cur++, endMoves);
@@ -352,25 +329,6 @@ Move MovePicker::next_move() {
 
       case STOP:
           return MOVE_NONE;
-
-      case MAIN_SEARCH_FULLGEN: case MAIN_SEARCH_FULLGEN_2:
-          move = pick_best(cur++, endMoves);
-          if (cur < endMoves)
-              return move;
-          /* Fallthrough */
-
-      case DEFERRED:
-          currentDeferredMove = 0;
-          cur = endMoves - 1; // Hack, prevents generate_next_stage() calls.
-          stage = DEFERRED_2;
-          /* Fallthrough */
-
-      case DEFERRED_2:
-          if (currentDeferredMove == deferredMoveCount) {
-              stage = STOP;
-              break;
-          }
-          return deferredMoves[currentDeferredMove++];
 
       default:
           assert(false);
