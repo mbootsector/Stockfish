@@ -85,7 +85,7 @@ public:
 
   MovePicker(const Position&, Move, Depth, const HistoryStats&, Square);
   MovePicker(const Position&, Move, const HistoryStats&, Value);
-  MovePicker(const Position&, Move, Depth, const HistoryStats&, const CounterMoveStats&, Move, Search::Stack*);
+  MovePicker(const Position&, Move, Depth, const HistoryStats&, const CounterMoveStats&, Move, Search::Stack*, bool doFullMoveGen);
 
   Move next_move();
 
@@ -108,6 +108,7 @@ private:
   int stage;
   ExtMove *endQuiets, *endBadCaptures = moves + MAX_MOVES - 1;
   ExtMove moves[MAX_MOVES], *cur = moves, *endMoves = moves;
+  bool moveIsSearched[MAX_MOVES];
 };
 
 #endif // #ifndef MOVEPICK_H_INCLUDED
