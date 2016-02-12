@@ -737,7 +737,7 @@ namespace {
     }
 
     // Step 7. Futility pruning: child node (skipped when in check)
-    if (   !PvNode
+    if (   !rootNode
         &&  depth < 7 * ONE_PLY
         &&  eval - futility_margin(depth) >= beta
         &&  eval < VALUE_KNOWN_WIN  // Do not return unproven wins
@@ -912,7 +912,7 @@ moves_loop: // When in check search starts from here
       newDepth = depth - ONE_PLY + extension;
 
       // Step 13. Pruning at shallow depth
-      if (   !PvNode
+      if (   !rootNode
           && !captureOrPromotion
           && !inCheck
           && !givesCheck
@@ -966,40 +966,48 @@ moves_loop: // When in check search starts from here
       pos.do_move(move, st, givesCheck);
 
       // ABDADA.
-      bool doAbdada = Threads.size() > 1 && moveCount > 1 && depth >= Depth(3);
+      bool doAbdada = Threads.size() > 1 && moveCount > 1 && depth >= Depth(5);
+      bool tteAbdadaHit;
       TTEntry* tteAbdada;
 
       if (doAbdada) {
-          tteAbdada = TT.probe(pos.key(), ttHit);
-          if (!mp.is_doing_deferred_moves())  // Check busy nodes only during the first pass.
+          // Re-probe because the entry may have been overwritten.
+          tte = TT.probe(posKey, ttHit);
+          ttValue = ttHit ? value_from_tt(tte->value(), ss->ply) : VALUE_NONE;
+
+          // Check for an early TT cutoff. This can avoid searching of delayed moves.
+          if (  !PvNode
+              && ttHit
+              && tte->depth() >= depth
+              && ttValue != VALUE_NONE    // Possible in case of TT access race
+              && (ttValue >= beta ? (tte->bound() & BOUND_LOWER)
+                                  : (tte->bound() & BOUND_UPPER)))
           {
-              // Test if the move is being searched by other threads.
-              if (ttHit && tteAbdada->busy())
+              pos.undo_move(move);
+
+              ttMove = rootNode ? thisThread->rootMoves[thisThread->PVIdx].pv[0] : tte->move();
+
+              // If ttMove is quiet, update killers, history, counter move on TT hit
+              if (ttValue >= beta && ttMove && !pos.capture_or_promotion(ttMove))
+                  update_stats(pos, ss, ttMove, depth, quietsSearched, quietCount);
+
+              return ttValue;
+          }
+
+          // We will delay searching nodes nodes currently being searched by other threads.
+          // If the node is not busy, mark it as such and search immediately.
+          tteAbdada = TT.probe(pos.key(), tteAbdadaHit);
+          if (tteAbdadaHit)
+          {
+              if (!mp.is_doing_deferred_moves() && tteAbdada->busy())
               {
                   pos.undo_move(move);
-
-                  ttValue = ttHit ? value_from_tt(tte->value(), ss->ply) : VALUE_NONE;
-                  ttMove =  rootNode ? thisThread->rootMoves[thisThread->PVIdx].pv[0]
-                          : ttHit    ? tte->move() : MOVE_NONE;
-
-                  // At non-PV nodes we check for an early TT cutoff
-                  if (  !PvNode
-                      && ttHit
-                      && tte->depth() >= newDepth
-                      && ttValue != VALUE_NONE // Possible in case of TT access race
-                      && (ttValue >= beta ? (tte->bound() & BOUND_LOWER)
-                                          : (tte->bound() & BOUND_UPPER)))
-                  {
-                      // If ttMove is quiet, update killers, history, counter move on TT hit
-                      if (ttValue >= beta && ttMove && !pos.capture_or_promotion(ttMove))
-                          update_stats(pos, ss, ttMove, depth, nullptr, 0);
-
-                      return ttValue; // This happens rarely.
-                  }
-
                   mp.defer(move);
                   continue;
               }
+          }
+          else {
+              tteAbdada->save(pos.key(), VALUE_NONE, BOUND_NONE, DEPTH_NONE, MOVE_NONE, VALUE_NONE, TT.generation());
           }
           tteAbdada->setBusyFlag();
       }
@@ -1067,7 +1075,7 @@ moves_loop: // When in check search starts from here
       pos.undo_move(move);
 
       if (doAbdada)
-          tteAbdada->clearBusyFlag();
+          tteAbdada->clearBusyFlag(); // The search of the childnode has written other information into TTE. *tteAbdada may have been overwritten.
 
       assert(value > -VALUE_INFINITE && value < VALUE_INFINITE);
 
