@@ -33,7 +33,7 @@ namespace {
     QSEARCH_WITHOUT_CHECKS, QCAPTURES_2,
     PROBCUT, PROBCUT_CAPTURES,
     RECAPTURE, RECAPTURES,
-    STOP,
+    STOP
   };
 
   // Our insertion sort, which is guaranteed to be stable, as it should be
