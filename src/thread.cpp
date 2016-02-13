@@ -168,6 +168,19 @@ int64_t ThreadPool::nodes_searched() {
 }
 
 
+/// ThreadPool::best_thread() returns the best thread.
+
+Thread* ThreadPool::best_thread() {
+
+  Thread* bestThread = main();
+  for (Thread* th : Threads)
+      if (   th->completedDepth > bestThread->completedDepth
+          && th->rootMoves[0].score > bestThread->rootMoves[0].score)
+          bestThread = th;
+  return bestThread;
+}
+
+
 /// ThreadPool::start_thinking() wakes up the main thread sleeping in idle_loop()
 /// and starts a new search, then returns immediately.
 

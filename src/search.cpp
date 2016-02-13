@@ -361,12 +361,7 @@ void MainThread::search() {
   if (   !this->easyMovePlayed
       &&  Options["MultiPV"] == 1
       && !Skill(Options["Skill Level"]).enabled())
-  {
-      for (Thread* th : Threads)
-          if (   th->completedDepth > bestThread->completedDepth
-              && th->rootMoves[0].score > bestThread->rootMoves[0].score)
-              bestThread = th;
-  }
+      bestThread = Threads.best_thread();
 
   previousScore = bestThread->rootMoves[0].score;
 
@@ -446,9 +441,10 @@ void Thread::search() {
           // Reset aspiration window starting size
           if (rootDepth >= 5 * ONE_PLY)
           {
+              Value v = Threads.best_thread()->rootMoves[PVIdx].previousScore;
               delta = Value(18);
-              alpha = std::max(rootMoves[PVIdx].previousScore - delta,-VALUE_INFINITE);
-              beta  = std::min(rootMoves[PVIdx].previousScore + delta, VALUE_INFINITE);
+              alpha = std::max(v - delta,-VALUE_INFINITE);
+              beta  = std::min(v + delta, VALUE_INFINITE);
           }
 
           // Start with a small aspiration window and, in the case of a fail

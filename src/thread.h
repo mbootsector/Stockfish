@@ -94,6 +94,7 @@ struct ThreadPool : public std::vector<Thread*> {
   void exit(); // be initialized and valid during the whole thread lifetime.
 
   MainThread* main() { return static_cast<MainThread*>(at(0)); }
+  Thread* best_thread();
   void start_thinking(const Position&, const Search::LimitsType&, Search::StateStackPtr&);
   void read_uci_options();
   int64_t nodes_searched();
