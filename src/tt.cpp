@@ -80,7 +80,7 @@ TTEntry* TranspositionTable::probe(const Key key, bool& found) const {
       if (!tte[i].key16 || tte[i].key16 == key16)
       {
           if ((tte[i].genBound8 & 0x7C) != generation8 && tte[i].key16)
-              tte[i].genBound8 = uint8_t(generation8 | tte[i].bound()); // Refresh
+              tte[i].genBound8 = uint8_t(generation8 | tte[i].bound() | tte[i].busy()); // Refresh
 
           return found = (bool)tte[i].key16, &tte[i];
       }

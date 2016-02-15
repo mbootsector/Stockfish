@@ -23,6 +23,7 @@
 #include <cmath>
 #include <cstring>   // For std::memset
 #include <iostream>
+#include <iomanip>
 #include <sstream>
 
 #include "evaluate.h"
@@ -126,6 +127,35 @@ namespace {
     Key expectedPosKey;
     Move pv[3];
   };
+
+  // Set of rows with half bits set to 1 and half to 0. It is used to allocate
+  // the search depths across the threads.
+  typedef std::vector<int> Row;
+
+  const Row HalfDensity[] = {
+    {0, 1},
+    {1, 0},
+    {0, 0, 1, 1},
+    {0, 1, 1, 0},
+    {1, 1, 0, 0},
+    {1, 0, 0, 1},
+    {0, 0, 0, 1, 1, 1},
+    {0, 0, 1, 1, 1, 0},
+    {0, 1, 1, 1, 0, 0},
+    {1, 1, 1, 0, 0, 0},
+    {1, 1, 0, 0, 0, 1},
+    {1, 0, 0, 0, 1, 1},
+    {0, 0, 0, 0, 1, 1, 1, 1},
+    {0, 0, 0, 1, 1, 1, 1, 0},
+    {0, 0, 1, 1, 1, 1, 0 ,0},
+    {0, 1, 1, 1, 1, 0, 0 ,0},
+    {1, 1, 1, 1, 0, 0, 0 ,0},
+    {1, 1, 1, 0, 0, 0, 0 ,1},
+    {1, 1, 0, 0, 0, 0, 1 ,1},
+    {1, 0, 0, 0, 0, 1, 1 ,1},
+  };
+
+  const size_t HalfDensitySize = std::extent<decltype(HalfDensity)>::value;
 
   EasyMoveManager EasyMove;
   Value DrawValue[COLOR_NB];
@@ -391,8 +421,17 @@ void Thread::search() {
   multiPV = std::min(multiPV, rootMoves.size());
 
   // Iterative deepening loop until requested to stop or the target depth is reached.
-  while (++rootDepth < DEPTH_MAX && !Signals.stop && (!Limits.depth || rootDepth <= Limits.depth))
+  while (++rootDepth < DEPTH_MAX && !Signals.stop && (!Limits.depth || Threads.main()->rootDepth <= Limits.depth))
   {
+      // Set up the new depths for the helper threads skipping on average every
+      // 2nd ply (using a half-density matrix).
+      if (!mainThread)
+      {
+          const Row& row = HalfDensity[(idx - 1) % HalfDensitySize];
+          if (row[(rootDepth + rootPos.game_ply()) % row.size()])
+             continue;
+      }
+
       // Age out PV variability metric
       if (mainThread)
           mainThread->bestMoveChanges *= 0.505, mainThread->failedLow = false;
@@ -557,7 +596,14 @@ void Thread::search() {
 
 
 namespace {
-
+/*
+  int _allProbes = 0;
+  int _cutoffs = 0;
+  int _deferrals = 0;
+  int _abdadaProbes = 0;
+  int _abdadaHits = 0;
+  int _busy = 0;
+*/
   // search<>() is the main search function for both PV and non-PV nodes
 
   template <NodeType NT>
@@ -975,6 +1021,8 @@ moves_loop: // When in check search starts from here
           tte = TT.probe(posKey, ttHit);
           ttValue = ttHit ? value_from_tt(tte->value(), ss->ply) : VALUE_NONE;
 
+//           _allProbes++;
+
           // Check for an early TT cutoff. This can avoid searching of delayed moves.
           if (  !PvNode
               && ttHit
@@ -991,16 +1039,29 @@ moves_loop: // When in check search starts from here
               if (ttValue >= beta && ttMove && !pos.capture_or_promotion(ttMove))
                   update_stats(pos, ss, ttMove, depth, quietsSearched, quietCount);
 
+//              _cutoffs++;
+
               return ttValue;
           }
-
-          // We will delay searching nodes nodes currently being searched by other threads.
+/*
+          if (mp.is_deferrable() && (moveCount & 1) == (thisThread->idx & 1)) {
+              pos.undo_move(move);
+              mp.defer(move);
+              continue;
+          }
+*/
+          // We will delay searching nodes currently being searched by other threads.
           // If the node is not busy, mark it as such and search immediately.
           tteAbdada = TT.probe(pos.key(), tteAbdadaHit);
+//          _abdadaProbes++;
           if (tteAbdadaHit)
           {
-              if (!mp.is_doing_deferred_moves() && tteAbdada->busy())
+//              _abdadaHits++;
+//              if (tteAbdada->busy()) 
+//                _busy++;
+              if (mp.is_deferrable() && tteAbdada->busy())
               {
+//                  _deferrals++;
                   pos.undo_move(move);
                   mp.defer(move);
                   continue;
@@ -1010,8 +1071,20 @@ moves_loop: // When in check search starts from here
               tteAbdada->save(pos.key(), VALUE_NONE, BOUND_NONE, DEPTH_NONE, MOVE_NONE, VALUE_NONE, TT.generation());
           }
           tteAbdada->setBusyFlag();
+
       }
 
+/*
+static int x = 0;
+if (++x >= 1000000 && thisThread->idx == 0) {
+  x = 0;
+  printf("\nall=%9d cut=%9d (%.7f)\napr=%9d aph=%9d (%.7f)\nbus=%9d (%.7f)\ndef=%9d (%.7f)\n",
+          _allProbes, _cutoffs, double(_allProbes) / double(_cutoffs == 0 ? -1 : _cutoffs),
+          _abdadaProbes, _abdadaHits, double(_abdadaHits) / double(_abdadaProbes == 0 ? -1 : _abdadaProbes),
+          _busy, double(_busy) / double(_abdadaHits == 0 ? -1 : _abdadaHits),
+          _deferrals, double(_deferrals) / double(Threads.nodes_searched()));
+}
+*/
       // Step 15. Reduced depth search (LMR). If the move fails high it will be
       // re-searched at full depth.
       if (    depth >= 3 * ONE_PLY
@@ -1071,11 +1144,11 @@ moves_loop: // When in check search starts from here
                                        : - search<PV>(pos, ss+1, -beta, -alpha, newDepth, false);
       }
 
+      if (doAbdada)
+          tteAbdada->clearBusyFlag();
+
       // Step 17. Undo move
       pos.undo_move(move);
-
-      if (doAbdada)
-          tteAbdada->clearBusyFlag(); // The search of the childnode has written other information into TTE. *tteAbdada may have been overwritten.
 
       assert(value > -VALUE_INFINITE && value < VALUE_INFINITE);
 

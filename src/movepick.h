@@ -89,7 +89,7 @@ public:
 
   Move next_move();
   void defer(Move m);
-  bool is_doing_deferred_moves();
+  bool is_deferrable();
 
 private:
   template<GenType> void score();

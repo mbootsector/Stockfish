@@ -341,6 +341,6 @@ void MovePicker::defer(Move m) {
   deferredMoves[deferredMoveCount++] = m;
 }
 
-bool MovePicker::is_doing_deferred_moves() {
-  return stage == DEFERRED_2;
+bool MovePicker::is_deferrable() {
+  return stage >= KILLERS && stage != DEFERRED_2;
 }

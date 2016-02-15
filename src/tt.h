@@ -42,7 +42,7 @@ struct TTEntry {
   Value eval()  const { return (Value)eval16; }
   Depth depth() const { return (Depth)depth8; }
   Bound bound() const { return (Bound)(genBound8 & 0x3); }
-  bool  busy() const  { return (bool)(genBound8 & 0x80); }
+  uint8_t busy() const { return (uint8_t)(genBound8 & 0x80); }
 
   void setBusyFlag()   { genBound8 |= 0x80; }
   void clearBusyFlag() { genBound8 &= 0x7F; }
@@ -59,10 +59,10 @@ struct TTEntry {
      /* || g != (genBound8 & 0xFC) // Matching non-zero keys are already refreshed by probe() */
         || b == BOUND_EXACT)
     {
+        genBound8 = (uint8_t)(g | b | ((k >> 48 == key16) ? busy() : 0));  // Preserve busy flag.
         key16     = (uint16_t)(k >> 48);
         value16   = (int16_t)v;
         eval16    = (int16_t)ev;
-        genBound8 = (genBound8 & 0x80) | (uint8_t)(g | b);  // Preserve busy flag.
         depth8    = (int8_t)d;
     }
   }
