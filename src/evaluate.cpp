@@ -521,7 +521,7 @@ namespace {
         while (b)
             score += Threat[Rook ][type_of(pos.piece_on(pop_lsb(&b)))];
 
-        b = weak & ~ei.attackedBy[Them][ALL_PIECES];
+        b = weak & ~ei.attackedBy[Them][ALL_PIECES] & ~pos.pieces(Them, PAWN);
         if (b)
             score += Hanging * popcount<Max15>(b);
 
