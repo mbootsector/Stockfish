@@ -169,7 +169,7 @@ namespace {
   // We don't use a Score because we process the two components independently.
   const Value Passed[][RANK_NB] = {
     { V(5), V( 5), V(31), V(73), V(166), V(252) },
-    { V(7), V(14), V(38), V(73), V(166), V(252) }
+    { V(7), V(14), V(38), V(69), V(152), V(223) }
   };
 
   // PassedFile[File] contains a bonus according to the file of a passed pawn
@@ -599,7 +599,7 @@ namespace {
                 else if (defendedSquares & blockSq)
                     k += 4;
 
-                mbonus += k * rr, ebonus += k * rr;
+                mbonus += k * rr, ebonus += (k > 0 ? (k + 4) : 0) * rr;
             }
             else if (pos.pieces(Us) & blockSq)
                 mbonus += rr + r * 2, ebonus += rr + r * 2;
