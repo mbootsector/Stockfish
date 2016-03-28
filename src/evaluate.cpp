@@ -899,9 +899,6 @@ Value BishopValueEg = (Value)907;
 Value RookValueEg   = (Value)1356;
 Value QueenValueEg  = (Value)2658;
 
-TUNE(KnightValueEg);
-TUNE(BishopValueEg);
-TUNE(RookValueEg);
-TUNE(QueenValueEg);
+TUNE(KnightValueEg, BishopValueEg, RookValueEg, QueenValueEg, PSQT::init);
 TUNE(Passed);
 TUNE(PassedFileInit);
