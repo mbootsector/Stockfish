@@ -167,15 +167,19 @@ namespace {
 
   // Passed[mg/eg][Rank] contains midgame and endgame bonuses for passed pawns.
   // We don't use a Score because we process the two components independently.
-  const Value Passed[][RANK_NB] = {
+  Value Passed[][RANK_NB] = {
     { V(5), V( 5), V(31), V(73), V(166), V(252) },
     { V(7), V(14), V(38), V(73), V(166), V(252) }
   };
 
   // PassedFile[File] contains a bonus according to the file of a passed pawn
-  const Score PassedFile[FILE_NB] = {
+  Score PassedFile[FILE_NB] = {
     S(  9, 10), S( 2, 10), S( 1, -8), S(-20,-12),
     S(-20,-12), S( 1, -8), S( 2, 10), S( 9, 10)
+  };
+
+  Score PassedFileInit[4] = {
+    S(  9, 10), S( 2, 10), S( 1, -8), S(-20,-12)
   };
 
   // Assorted bonuses and penalties used by evaluation
@@ -885,4 +889,20 @@ void Eval::init() {
       t = std::min(Peak, std::min(i * i - 16, t + MaxSlope));
       KingDanger[i] = make_score(t * 268 / 7700, 0);
   }
+
+  for (int i = 0; i < 4; i++)
+      PassedFile[i] = PassedFile[7-i] = PassedFileInit[i];
 }
+
+
+Value KnightValueEg = (Value)896;
+Value BishopValueEg = (Value)907;
+Value RookValueEg   = (Value)1356;
+Value QueenValueEg  = (Value)2658;
+
+TUNE(KnightValueEg, BishopValueEg, RookValueEg, QueenValueEg, PSQT::init);
+
+TUNE(SetRange(0, 100),  Passed[0][0], Passed[0][1], Passed[0][2], Passed[1][0], Passed[1][1], Passed[1][2],
+     SetDefaultRange,   Passed[0][3], Passed[0][4], Passed[0][5], Passed[1][3], Passed[1][4], Passed[1][5]);
+
+TUNE(SetRange(-50, 50), PassedFileInit, Eval::init);
