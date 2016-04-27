@@ -563,12 +563,23 @@ namespace {
             Square blockSq = s + pawn_push(Us);
 
             // Adjust bonus based on the king's proximity
-            ebonus +=  distance(pos.square<KING>(Them), blockSq) * 5 * rr
-                     - distance(pos.square<KING>(Us  ), blockSq) * 2 * rr;
+            ebonus += distance(pos.square<KING>(Them), blockSq) * 5 * rr;
 
-            // If blockSq is not the queening square then consider also a second push
+            // Penalize pawns far away from our king. Unsupported pawns get higher penalty.
+            // If blockSq is not the queening square then consider also a second push.
+            int penalty = distance(pos.square<KING>(Us  ), blockSq) * 2 * rr;
             if (relative_rank(Us, blockSq) != RANK_8)
-                ebonus -= distance(pos.square<KING>(Us), blockSq + pawn_push(Us)) * rr;
+                penalty += distance(pos.square<KING>(Us), blockSq + pawn_push(Us)) * rr;
+
+            Bitboard support =  ei.attackedBy[Us][KNIGHT] | ei.attackedBy[Us][BISHOP]
+                              | ei.attackedBy[Us][ROOK  ] | ei.attackedBy[Us][QUEEN ];
+
+            int factor = 4 - (ei.attackedBy[Us][PAWN] & s       ? 1 : 0)
+                           - (ei.attackedBy[Us][PAWN] & blockSq ? 1 : 0)
+                           - (support & s       ? 1 : 0)
+                           - (support & blockSq ? 1 : 0);
+
+            ebonus -= (penalty * factor) / 4;
 
             // If the pawn is free to advance, then increase the bonus
             if (pos.empty(blockSq))
