@@ -64,7 +64,6 @@ private:
 typedef Stats<Move> MoveStats;
 typedef Stats<Value, false> HistoryStats;
 typedef Stats<Value,  true> CounterMoveStats;
-typedef Stats<CounterMoveStats> CounterMoveHistoryStats;
 
 
 /// MovePicker class is used to pick one pseudo legal move at a time from the
