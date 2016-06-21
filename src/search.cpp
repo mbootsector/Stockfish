@@ -442,6 +442,10 @@ void Thread::search() {
               }
               else if (bestValue >= beta)
               {
+                  // Ignore fail highs for deeper threads.
+                  if (this->rootDepth >= Threads.main()->rootDepth + 2 * ONE_PLY)
+                      break;
+
                   alpha = (alpha + beta) / 2;
                   beta = std::min(bestValue + delta, VALUE_INFINITE);
               }
