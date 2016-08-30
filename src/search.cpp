@@ -158,6 +158,7 @@ namespace {
   EasyMoveManager EasyMove;
   Value DrawValue[COLOR_NB];
   CounterMoveHistoryStats CounterMoveHistory;
+  int StatsMultiplier;
 
   template <NodeType NT>
   Value search(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth, bool cutNode);
@@ -167,6 +168,7 @@ namespace {
 
   Value value_to_tt(Value v, int ply);
   Value value_from_tt(Value v, int ply);
+  Value stats_bonus(Depth depth, int type);
   void update_pv(Move* pv, Move move, Move* childPv);
   void update_cm_stats(Stack* ss, Piece pc, Square s, Value bonus);
   void update_stats(const Position& pos, Stack* ss, Move move, Move* quiets, int quietsCnt, Value bonus);
@@ -261,6 +263,8 @@ void MainThread::search() {
   int contempt = Options["Contempt"] * PawnValueEg / 100; // From centipawns
   DrawValue[ us] = VALUE_DRAW - Value(contempt);
   DrawValue[~us] = VALUE_DRAW + Value(contempt);
+
+  StatsMultiplier = int(256.0 / sqrt((double)Threads.size()));
 
   if (rootMoves.empty())
   {
@@ -641,20 +645,14 @@ namespace {
         // If ttMove is quiet, update killers, history, counter move on TT hit
         if (ttValue >= beta && ttMove)
         {
-            int d = depth / ONE_PLY;
-
             if (!pos.capture_or_promotion(ttMove))
-            {
-                Value bonus = Value(d * d + 2 * d - 2);
-                update_stats(pos, ss, ttMove, nullptr, 0, bonus);
-            }
+                update_stats(pos, ss, ttMove, nullptr, 0, stats_bonus(depth, 1));
 
             // Extra penalty for a quiet TT move in previous ply when it gets refuted
             if ((ss-1)->moveCount == 1 && !pos.captured_piece_type())
             {
-                Value penalty = Value(d * d + 4 * d + 1);
                 Square prevSq = to_sq((ss-1)->currentMove);
-                update_cm_stats(ss-1, pos.piece_on(prevSq), prevSq, -penalty);
+                update_cm_stats(ss-1, pos.piece_on(prevSq), prevSq, -stats_bonus(depth, 2));
             }
         }
         return ttValue;
@@ -1128,21 +1126,15 @@ moves_loop: // When in check search starts from here
                    :     inCheck ? mated_in(ss->ply) : DrawValue[pos.side_to_move()];
     else if (bestMove)
     {
-        int d = depth / ONE_PLY;
-
         // Quiet best move: update killers, history and countermoves
         if (!pos.capture_or_promotion(bestMove))
-        {
-            Value bonus = Value(d * d + 2 * d - 2);
-            update_stats(pos, ss, bestMove, quietsSearched, quietCount, bonus);
-        }
+            update_stats(pos, ss, bestMove, quietsSearched, quietCount, stats_bonus(depth, 1));
 
         // Extra penalty for a quiet TT move in previous ply when it gets refuted
         if ((ss-1)->moveCount == 1 && !pos.captured_piece_type())
         {
-            Value penalty = Value(d * d + 4 * d + 1);
             Square prevSq = to_sq((ss-1)->currentMove);
-            update_cm_stats(ss-1, pos.piece_on(prevSq), prevSq, -penalty);
+            update_cm_stats(ss-1, pos.piece_on(prevSq), prevSq, -stats_bonus(depth, 2));
         }
     }
     // Bonus for prior countermove that caused the fail low
@@ -1150,10 +1142,8 @@ moves_loop: // When in check search starts from here
              && !pos.captured_piece_type()
              && is_ok((ss-1)->currentMove))
     {
-        int d = depth / ONE_PLY;
-        Value bonus = Value(d * d + 2 * d - 2);
         Square prevSq = to_sq((ss-1)->currentMove);
-        update_cm_stats(ss-1, pos.piece_on(prevSq), prevSq, bonus);
+        update_cm_stats(ss-1, pos.piece_on(prevSq), prevSq, stats_bonus(depth, 1));
     }
 
     tte->save(posKey, value_to_tt(bestValue, ss->ply),
@@ -1410,6 +1400,15 @@ moves_loop: // When in check search starts from here
     for (*pv++ = move; childPv && *childPv != MOVE_NONE; )
         *pv++ = *childPv++;
     *pv = MOVE_NONE;
+  }
+
+
+  // stats_bonus() gives a value for stats bonus
+
+  Value stats_bonus(Depth depth, int type) {
+      int d = depth / ONE_PLY;
+      return type == 1 ? Value((d * d + 2 * d - 2) * StatsMultiplier / 256)
+                       : Value((d * d + 4 * d + 1) * StatsMultiplier / 256);
   }
 
 
