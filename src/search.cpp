@@ -173,6 +173,14 @@ namespace {
   void update_stats(const Position& pos, Stack* ss, Move move, Depth depth, Move* quiets, int quietsCnt);
   void check_time();
 
+  int _allProbes = 0;
+  int _cutoffs = 0;
+  int _deferrals = 0;
+  int _abdadaProbes = 0;
+  int _abdadaHits = 0;
+  int _busy = 0;
+  int _totalNodesSearched = 0;
+
 } // namespace
 
 
@@ -381,6 +389,15 @@ void MainThread::search() {
       std::cout << " ponder " << UCI::move(bestThread->rootMoves[0].pv[1], rootPos.is_chess960());
 
   std::cout << sync_endl;
+
+
+  _totalNodesSearched += Threads.nodes_searched();
+
+  printf("\nall =%9d cut =%9d %.7f\napr =%9d aph =%9d %.7f\nbus =%9d %.7f\ndef =%9d %.7f\n",
+          _allProbes,    _cutoffs,    double(_cutoffs)    / double(std::max(1, _allProbes)),
+          _abdadaProbes, _abdadaHits, double(_abdadaHits) / double(std::max(1, _abdadaProbes)),
+          _busy,                      double(_busy)       / double(std::max(1, _abdadaHits)),
+          _deferrals,                 double(_deferrals)  / double(std::max(1, _abdadaProbes)));
 }
 
 
@@ -596,14 +613,7 @@ void Thread::search() {
 
 
 namespace {
-/*
-  int _allProbes = 0;
-  int _cutoffs = 0;
-  int _deferrals = 0;
-  int _abdadaProbes = 0;
-  int _abdadaHits = 0;
-  int _busy = 0;
-*/
+
   // search<>() is the main search function for both PV and non-PV nodes
 
   template <NodeType NT>
@@ -1017,13 +1027,14 @@ moves_loop: // When in check search starts from here
       TTEntry* tteAbdada;
 
       if (doAbdada) {
+/*
           // Re-probe because the entry may have been overwritten.
           tte = TT.probe(posKey, ttHit);
           ttValue = ttHit ? value_from_tt(tte->value(), ss->ply) : VALUE_NONE;
 
-//           _allProbes++;
+           _allProbes++;
 
-          // Check for an early TT cutoff. This can avoid searching of delayed moves.
+          // Check for an early TT cutoff. This can avoid search of delayed moves.
           if (  !PvNode
               && ttHit
               && tte->depth() >= depth
@@ -1039,29 +1050,29 @@ moves_loop: // When in check search starts from here
               if (ttValue >= beta && ttMove && !pos.capture_or_promotion(ttMove))
                   update_stats(pos, ss, ttMove, depth, quietsSearched, quietCount);
 
-//              _cutoffs++;
+              _cutoffs++;
 
               return ttValue;
           }
-/*
-          if (mp.is_deferrable() && (moveCount & 1) == (thisThread->idx & 1)) {
-              pos.undo_move(move);
-              mp.defer(move);
-              continue;
-          }
 */
+//          if (mp.is_deferrable() && (moveCount & 1) == (thisThread->idx & 1)) {
+//              pos.undo_move(move);
+//              mp.defer(move);
+//              continue;
+//          }
+
           // We will delay searching nodes currently being searched by other threads.
           // If the node is not busy, mark it as such and search immediately.
           tteAbdada = TT.probe(pos.key(), tteAbdadaHit);
-//          _abdadaProbes++;
+          _abdadaProbes++;
           if (tteAbdadaHit)
           {
-//              _abdadaHits++;
-//              if (tteAbdada->busy()) 
-//                _busy++;
+              _abdadaHits++;
+              if (tteAbdada->busy()) 
+                _busy++;
               if (mp.is_deferrable() && tteAbdada->busy())
               {
-//                  _deferrals++;
+                  _deferrals++;
                   pos.undo_move(move);
                   mp.defer(move);
                   continue;
@@ -1071,20 +1082,8 @@ moves_loop: // When in check search starts from here
               tteAbdada->save(pos.key(), VALUE_NONE, BOUND_NONE, DEPTH_NONE, MOVE_NONE, VALUE_NONE, TT.generation());
           }
           tteAbdada->setBusyFlag();
-
       }
 
-/*
-static int x = 0;
-if (++x >= 1000000 && thisThread->idx == 0) {
-  x = 0;
-  printf("\nall=%9d cut=%9d (%.7f)\napr=%9d aph=%9d (%.7f)\nbus=%9d (%.7f)\ndef=%9d (%.7f)\n",
-          _allProbes, _cutoffs, double(_allProbes) / double(_cutoffs == 0 ? -1 : _cutoffs),
-          _abdadaProbes, _abdadaHits, double(_abdadaHits) / double(_abdadaProbes == 0 ? -1 : _abdadaProbes),
-          _busy, double(_busy) / double(_abdadaHits == 0 ? -1 : _abdadaHits),
-          _deferrals, double(_deferrals) / double(Threads.nodes_searched()));
-}
-*/
       // Step 15. Reduced depth search (LMR). If the move fails high it will be
       // re-searched at full depth.
       if (    depth >= 3 * ONE_PLY
