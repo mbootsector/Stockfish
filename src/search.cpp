@@ -891,6 +891,7 @@ moves_loop: // When in check search starts from here
       // Step 12. Extend checks
       if (    givesCheck
           && !moveCountPruning
+          &&  depth >= 3 * ONE_PLY
           &&  pos.see_sign(move) >= VALUE_ZERO)
           extension = ONE_PLY;
 
