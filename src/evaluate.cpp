@@ -290,7 +290,10 @@ namespace {
 
         int mob = popcount(b & mobilityArea[Us]);
 
-        mobility[Us] += MobilityBonus[Pt][mob];
+        if (Pt == ROOK || Pt == QUEEN)
+            mobility[Us] += (MobilityBonus[Pt][mob] * ei.pi->mess[Them]) / 16;
+        else
+            mobility[Us] += MobilityBonus[Pt][mob];
 
         if (Pt == BISHOP || Pt == KNIGHT)
         {
@@ -816,8 +819,7 @@ Value Eval::evaluate(const Position& pos) {
 
   // Evaluate all pieces but king and pawns
   score += evaluate_pieces<DoTrace>(pos, ei, mobility, mobilityArea);
-  score +=  (mobility[WHITE] * ei.pi->mess[BLACK]) / 16
-          - (mobility[BLACK] * ei.pi->mess[WHITE]) / 16;
+  score += mobility[WHITE] - mobility[BLACK];
 
   // Evaluate kings after all other pieces because we need full attack
   // information when computing the king safety evaluation.
