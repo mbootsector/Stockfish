@@ -816,7 +816,8 @@ Value Eval::evaluate(const Position& pos) {
 
   // Evaluate all pieces but king and pawns
   score += evaluate_pieces<DoTrace>(pos, ei, mobility, mobilityArea);
-  score += mobility[WHITE] - mobility[BLACK];
+  score +=  (mobility[WHITE] * ei.pi->mess[BLACK]) / 16
+          - (mobility[BLACK] * ei.pi->mess[WHITE]) / 16;
 
   // Evaluate kings after all other pieces because we need full attack
   // information when computing the king safety evaluation.

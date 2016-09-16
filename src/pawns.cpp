@@ -109,6 +109,7 @@ namespace {
     e->pawnAttacks[Us] = shift_bb<Right>(ourPawns) | shift_bb<Left>(ourPawns);
     e->pawnsOnSquares[Us][BLACK] = popcount(ourPawns & DarkSquares);
     e->pawnsOnSquares[Us][WHITE] = pos.count<PAWN>(Us) - e->pawnsOnSquares[Us][BLACK];
+    e->mess[Us] = 0;
 
     // Loop through all pawns of the current color and score each pawn
     while ((s = *pl++) != SQ_NONE)
@@ -154,10 +155,16 @@ namespace {
 
         // Score this pawn
         if (!neighbours)
+        {
             score -= Isolated[opposed];
+            e->mess[Us]++;
+        }
 
         else if (backward)
+        {
             score -= Backward[opposed];
+            e->mess[Us]++;
+        }
 
         else if (!supported)
             score -= Unsupported[more_than_one(neighbours & pawnAttacksBB[s])];
@@ -166,11 +173,16 @@ namespace {
             score += Connected[opposed][!!phalanx][more_than_one(supported)][relative_rank(Us, s)];
 
         if (doubled)
+        {
             score -= Doubled;
+            e->mess[Us]++;
+        }
 
         if (lever)
             score += Lever[relative_rank(Us, s)];
     }
+
+    e->mess[Us] = 12 + std::min(8, e->mess[Us]);
 
     return score;
   }
