@@ -23,6 +23,7 @@
 #include <cstring>   // For std::memset
 #include <iomanip>
 #include <sstream>
+#include <iostream>
 
 #include "bitboard.h"
 #include "evaluate.h"
@@ -389,6 +390,17 @@ namespace {
       CenterFiles & BlackCamp, KingSide  & BlackCamp, KingSide  & BlackCamp, KingSide    & BlackCamp },
   };
 
+  const Bitboard StormFiles[FILE_NB] = {
+        FileABB | FileBBB | FileCBB,
+        FileABB | FileBBB | FileCBB,
+        FileBBB | FileCBB | FileDBB,
+        FileCBB | FileDBB | FileEBB,
+        FileDBB | FileEBB | FileFBB,
+        FileEBB | FileFBB | FileGBB,
+        FileFBB | FileGBB | FileHBB,
+        FileFBB | FileGBB | FileHBB
+  };
+
   template<Color Us, bool DoTrace>
   Score evaluate_king(const Position& pos, const EvalInfo& ei) {
 
@@ -399,8 +411,22 @@ namespace {
     int kingDanger;
     const Square ksq = pos.square<KING>(Us);
 
-    // King shelter and enemy pawns storm
+    // King shelter.
     Score score = ei.pi->king_safety<Us>(pos, ksq);
+
+    // Pawn storm.
+    const Bitboard stormRanks = Us == WHITE ? (Rank2BB | Rank3BB | Rank4BB | Rank5BB)
+                                            : (Rank7BB | Rank6BB | Rank5BB | Rank4BB);
+    Bitboard storm =   StormFiles[file_of(ksq)] & stormRanks
+                     /*& ~ei.attackedBy[Us][PAWN]*/
+                     & (ei.attackedBy[Them][ALL_PIECES] | ~ei.attackedBy[Us][ALL_PIECES]);
+
+    // Find all squares which are at most three squares behind some opponent pawn
+    Bitboard behind = pos.pieces(Them, PAWN);
+    behind |= (Us == WHITE ? behind <<  8 : behind >>  8);
+    behind |= (Us == WHITE ? behind << 16 : behind >> 16);
+    int weight = popcount(behind & storm);
+    score -= make_score(2 * weight * weight, 0);
 
     // Main king safety evaluation
     if (ei.kingAttackersCount[Them])

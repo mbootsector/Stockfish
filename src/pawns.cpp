@@ -229,13 +229,10 @@ Entry* probe(const Position& pos) {
 template<Color Us>
 Value Entry::shelter_storm(const Position& pos, Square ksq) {
 
-  const Color Them = (Us == WHITE ? BLACK : WHITE);
-
   enum { NoFriendlyPawn, Unblocked, BlockedByPawn, BlockedByKing };
 
   Bitboard b = pos.pieces(PAWN) & (in_front_bb(Us, rank_of(ksq)) | rank_bb(ksq));
   Bitboard ourPawns = b & pos.pieces(Us);
-  Bitboard theirPawns = b & pos.pieces(Them);
   Value safety = MaxSafetyBonus;
   File center = std::max(FILE_B, std::min(FILE_G, file_of(ksq)));
 
@@ -244,15 +241,7 @@ Value Entry::shelter_storm(const Position& pos, Square ksq) {
       b = ourPawns & file_bb(f);
       Rank rkUs = b ? relative_rank(Us, backmost_sq(Us, b)) : RANK_1;
 
-      b  = theirPawns & file_bb(f);
-      Rank rkThem = b ? relative_rank(Us, frontmost_sq(Them, b)) : RANK_1;
-
-      safety -=  ShelterWeakness[std::min(f, FILE_H - f)][rkUs]
-               + StormDanger
-                 [f == file_of(ksq) && rkThem == relative_rank(Us, ksq) + 1 ? BlockedByKing  :
-                  rkUs   == RANK_1                                          ? NoFriendlyPawn :
-                  rkThem == rkUs + 1                                        ? BlockedByPawn  : Unblocked]
-                 [std::min(f, FILE_H - f)][rkThem];
+      safety -=  ShelterWeakness[std::min(f, FILE_H - f)][rkUs];
   }
 
   return safety;
