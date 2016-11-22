@@ -416,13 +416,17 @@ namespace {
         b =  ei.attackedBy[Them][ALL_PIECES] & ~ei.attackedBy[Us][ALL_PIECES]
            & ei.kingRing[Us] & ~pos.pieces(Them);
 
+        // Avoid focusing attacks to a single well protected square.
+        Bitboard a = ei.attackedBy[Them][ALL_PIECES] & ei.attackedBy[Us][KING] & ~ei.attackedBy2[Us];
+        int adjacentFactor = more_than_one(a) ? 101 : 50;
+
         // Initialize the 'kingDanger' variable, which will be transformed
         // later into a king danger score. The initial value is based on the
         // number and types of the enemy's attacking pieces, the number of
         // attacked and undefended squares around our king and the quality of
         // the pawn shelter (current 'score' value).
         kingDanger =  std::min(807, ei.kingAttackersCount[Them] * ei.kingAttackersWeight[Them])
-                    + 101 * ei.kingAdjacentZoneAttacksCount[Them]
+                    + adjacentFactor * ei.kingAdjacentZoneAttacksCount[Them]
                     + 235 * popcount(undefended)
                     + 134 * (popcount(b) + !!ei.pinnedPieces[Us])
                     - 717 * !pos.count<QUEEN>(Them)
