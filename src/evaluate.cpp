@@ -544,8 +544,11 @@ namespace {
         if (weak ^ safeThreats)
             score += ThreatByHangingPawn;
 
-        while (safeThreats)
-            score += ThreatBySafePawn[type_of(pos.piece_on(pop_lsb(&safeThreats)))];
+        while (safeThreats) {
+            Square s = pop_lsb(&safeThreats);
+            score += ThreatBySafePawn[type_of(pos.piece_on(s))];
+            score += ThreatByRank * (int)relative_rank(Them, s);
+        }
     }
 
     // Non-pawn enemies defended by a pawn
