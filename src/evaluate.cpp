@@ -201,6 +201,7 @@ namespace {
   const Score PawnlessFlank       = S(20, 80);
   const Score HinderPassedPawn    = S( 7,  0);
   const Score ThreatByRank        = S(16,  3);
+  const Score BackwardReduction   = S(20, 10);
 
   // Penalty for a bishop on a1/h1 (a8/h8 for black) which is trapped by
   // a friendly pawn on b2/g2 (b7/g7 for black). This can obviously only
@@ -851,6 +852,11 @@ Value Eval::evaluate(const Position& pos) {
   // Evaluate passed pawns, we need full attack information including king
   score +=  evaluate_passed_pawns<WHITE, DoTrace>(pos, ei)
           - evaluate_passed_pawns<BLACK, DoTrace>(pos, ei);
+
+  // Reduce penalty of backward pawns if we can push them safely.
+  Bitboard wb = shift<NORTH>(ei.pi->backward[WHITE] & ~Rank2BB) & ~pos.pieces(BLACK, PAWN) & ei.attackedBy2[WHITE];
+  Bitboard bb = shift<SOUTH>(ei.pi->backward[BLACK] & ~Rank7BB) & ~pos.pieces(WHITE, PAWN) & ei.attackedBy2[BLACK];
+  score += (popcount(wb) - popcount(bb)) * BackwardReduction;
 
   // If both sides have only pawns, score for potential unstoppable pawns
   if (!pos.non_pawn_material(WHITE) && !pos.non_pawn_material(BLACK))
