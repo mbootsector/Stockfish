@@ -106,7 +106,7 @@ namespace {
     Bitboard ourPawns   = pos.pieces(Us  , PAWN);
     Bitboard theirPawns = pos.pieces(Them, PAWN);
 
-    e->backward[Us] = e->passedPawns[Us]   = e->pawnAttacksSpan[Us] = 0;
+    e->backwardish[Us]   = e->passedPawns[Us] = e->pawnAttacksSpan[Us] = 0;
     e->semiopenFiles[Us] = 0xFF;
     e->kingSquares[Us]   = SQ_NONE;
     e->pawnAttacks[Us]   = shift<Right>(ourPawns) | shift<Left>(ourPawns);
@@ -161,7 +161,7 @@ namespace {
 
         else if (backward) {
             score -= Backward[opposed];
-            e->backward[Us] |= s;
+            e->backwardish[Us] |= s;
         }
 
         else if (!supported)
@@ -176,6 +176,13 @@ namespace {
         if (lever)
             score += Lever[relative_rank(Us, s)];
     }
+
+    const Square TheirRight = (Us == WHITE ? SOUTH_WEST : NORTH_EAST);
+    const Square TheirLeft  = (Us == WHITE ? SOUTH_EAST : NORTH_WEST);
+    const Bitboard Rank2bb  = (Us == WHITE ? Rank2BB : Rank7BB);
+
+    Bitboard dblAttacks = shift<TheirLeft>(theirPawns) & shift<TheirRight>(theirPawns);
+    e->backwardish[Us]  = shift<Up>(e->backwardish[Us] & ~Rank2bb) & ~dblAttacks;
 
     return score;
   }

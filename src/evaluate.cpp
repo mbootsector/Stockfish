@@ -854,8 +854,8 @@ Value Eval::evaluate(const Position& pos) {
           - evaluate_passed_pawns<BLACK, DoTrace>(pos, ei);
 
   // Reduce penalty of backward pawns if we can push them safely.
-  Bitboard wb = shift<NORTH>(ei.pi->backward[WHITE] & ~Rank2BB) & ~pos.pieces(BLACK, PAWN) & ei.attackedBy2[WHITE];
-  Bitboard bb = shift<SOUTH>(ei.pi->backward[BLACK] & ~Rank7BB) & ~pos.pieces(WHITE, PAWN) & ei.attackedBy2[BLACK];
+  Bitboard wb = ei.pi->backwardish[WHITE] & ei.attackedBy2[WHITE] & ~pos.pieces();
+  Bitboard bb = ei.pi->backwardish[BLACK] & ei.attackedBy2[BLACK] & ~pos.pieces();
   score += (popcount(wb) - popcount(bb)) * BackwardReduction;
 
   // If both sides have only pawns, score for potential unstoppable pawns
