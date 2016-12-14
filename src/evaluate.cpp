@@ -201,6 +201,7 @@ namespace {
   const Score PawnlessFlank       = S(20, 80);
   const Score HinderPassedPawn    = S( 7,  0);
   const Score ThreatByRank        = S(16,  3);
+  const Score MateThreatDefender  = S(77, 11);
 
   // Penalty for a bishop on a1/h1 (a8/h8 for black) which is trapped by
   // a friendly pawn on b2/g2 (b7/g7 for black). This can obviously only
@@ -449,6 +450,29 @@ namespace {
         // Enemy queen safe checks
         if ((b1 | b2) & ei.attackedBy[Them][QUEEN] & safe)
             kingDanger += QueenCheck, score -= SafeCheck;
+        else {
+            // When we have a single piece defending against a mate threat that piece is sometimes out of play.
+            Bitboard checks = ei.attackedBy[Us][KING] & ei.attackedBy[Them][QUEEN]
+                            & ei.attackedBy2[Them] & ~ei.attackedBy[Us][PAWN];
+            if (checks)
+            {
+                Bitboard escapes = ei.attackedBy[Us][KING] & ~(pos.pieces(Us) | ei.attackedBy[Them][ALL_PIECES]);
+                do {
+                    Square s = pop_lsb(&checks);
+                    if ((escapes & ~attacks_bb<QUEEN>(s, pos.pieces() ^ pos.pieces(Us, KING))) == 0) // No escape
+                    {
+                        int defenders = 0;
+                        if (ei.attackedBy[Us][KNIGHT] & s)
+                            defenders += more_than_one(pos.attacks_from<KNIGHT>(s) & pos.pieces(Them, KNIGHT)) ? 2 : 1;
+                        if (ei.attackedBy[Us][BISHOP] & s) defenders++;
+                        if (ei.attackedBy[Us][ROOK  ] & s) defenders++;
+                        if (ei.attackedBy[Us][QUEEN ] & s) defenders++;
+                        if (defenders == 1)
+                            score -= MateThreatDefender;
+                    }
+                } while (checks);
+            }
+        }
 
         // For other pieces, also consider the square safe if attacked twice,
         // and only defended by a queen.
