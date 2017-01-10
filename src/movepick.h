@@ -71,11 +71,23 @@ struct Stats {
     if (abs(int(v)) >= 324)
         return;
 
+    modify(pc, to, v);
+
+    switch (pc) {
+        case W_BISHOP : modify(W_QUEEN, to, v / 4); break;
+        case B_BISHOP : modify(B_QUEEN, to, v / 4); break;
+        case W_ROOK   : modify(W_QUEEN, to, v / 2); break;
+        case B_ROOK   : modify(B_QUEEN, to, v / 2); break;
+        default       : break;
+    }
+  }
+
+private:
+  void modify(Piece pc, Square to, Value v) {
     table[pc][to] -= table[pc][to] * abs(int(v)) / (CM ? 936 : 324);
     table[pc][to] += int(v) * 32;
   }
 
-private:
   T table[PIECE_NB][SQUARE_NB];
 };
 
