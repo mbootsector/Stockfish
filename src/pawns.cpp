@@ -52,10 +52,15 @@ namespace {
     S(17, 16), S(33, 32), S(0, 0), S(0, 0)
   };
 
-  // PassedFile[File] contains a bonus according to the file of a passed pawn
-  const Score PassedFile[FILE_NB] = {
-    S(  9, 10), S( 2, 10), S( 1, -8), S(-20,-12),
-    S(-20,-12), S( 1, -8), S( 2, 10), S(  9, 10)
+  // PassedPawn[Rank][File] contains a bonuses for passed pawns.
+  const Score PassedPawn[RANK_NB][int(FILE_NB) / 2] = {
+    { S(  0,  0), S( 0,  0), S( 0,  0), S(  0,  0) },
+    { S(  9, 10), S( 2, 10), S( 1, -8), S(-20,-12) },
+    { S(  9, 10), S( 2, 10), S( 1, -8), S(-20,-12) },
+    { S( 20, 10), S(20, 10), S( 5, -8), S(-15,-12) },
+    { S( 50, 10), S(50, 10), S(10, -4), S(  5, -6) },
+    { S( 50, 10), S(50, 10), S(10, -4), S(  5, -6) },
+    { S( 50, 10), S(50, 10), S(10, -4), S(  5, -6) }
   };
 
   // Weakness of our pawn shelter in front of the king by [distance from edge][rank].
@@ -169,7 +174,7 @@ namespace {
             && popcount(phalanx)   >= popcount(leverPush))
         {
             e->passedPawns[Us] |= s;
-            score += PassedFile[f];
+            score += PassedPawn[relative_rank(Us, s)][std::min(f, FILE_H - f)];
         }
 
         // Score this pawn
