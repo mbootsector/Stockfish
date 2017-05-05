@@ -52,6 +52,12 @@ namespace {
     S(17, 16), S(33, 32), S(0, 0), S(0, 0)
   };
 
+  // PassedFile[File] contains a bonus according to the file of a passed pawn
+  const Score PassedFile[FILE_NB] = {
+    S(  9, 10), S( 2, 10), S( 1, -8), S(-20,-12),
+    S(-20,-12), S( 1, -8), S( 2, 10), S(  9, 10)
+  };
+
   // Weakness of our pawn shelter in front of the king by [distance from edge][rank].
   // RANK_1 = 0 is used for files where we have no pawns or our pawn is behind our king.
   const Value ShelterWeakness[][RANK_NB] = {
@@ -161,7 +167,10 @@ namespace {
             && !(ourPawns & forward_bb(Us, s))
             && popcount(supported) >= popcount(lever)
             && popcount(phalanx)   >= popcount(leverPush))
+        {
             e->passedPawns[Us] |= s;
+            score += PassedFile[f];
+        }
 
         // Score this pawn
         if (!neighbours)
