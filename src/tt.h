@@ -42,7 +42,7 @@ struct TTEntry {
   Depth depth() const { return (Depth)(depth8 * int(ONE_PLY)); }
   Bound bound() const { return (Bound)(genBound8 & 0x3); }
 
-  void save(Key k, Value v, Bound b, Depth d, Move m, Value ev, uint8_t g) {
+  void save(Key k, Value v, Bound b, Depth d, Move m, Value ev, uint8_t g, bool bestSmpThread) {
 
     assert(d / ONE_PLY * ONE_PLY == d);
 
@@ -52,7 +52,7 @@ struct TTEntry {
 
     // Don't overwrite more valuable entries
     if (  (k >> 48) != key16
-        || d / ONE_PLY > depth8 - 4
+        || d / ONE_PLY > depth8 - (bestSmpThread ? 3 : 4)
      /* || g != (genBound8 & 0xFC) // Matching non-zero keys are already refreshed by probe() */
         || b == BOUND_EXACT)
     {

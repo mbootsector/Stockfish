@@ -294,16 +294,7 @@ void MainThread::search() {
       && !Limits.depth
       && !Skill(Options["Skill Level"]).enabled()
       &&  rootMoves[0].pv[0] != MOVE_NONE)
-  {
-      for (Thread* th : Threads)
-      {
-          Depth depthDiff = th->completedDepth - bestThread->completedDepth;
-          Value scoreDiff = th->rootMoves[0].score - bestThread->rootMoves[0].score;
-
-          if (scoreDiff > 0 && depthDiff >= 0)
-              bestThread = th;
-      }
-  }
+      bestThread = Threads.getBestThread();
 
   previousScore = bestThread->rootMoves[0].score;
 
@@ -338,6 +329,7 @@ void Thread::search() {
   bestValue = delta = alpha = -VALUE_INFINITE;
   beta = VALUE_INFINITE;
   completedDepth = DEPTH_ZERO;
+  bestSmpThread = false;
 
   if (mainThread)
   {
@@ -457,7 +449,10 @@ void Thread::search() {
       }
 
       if (!Signals.stop)
+      {
           completedDepth = rootDepth;
+          Threads.setBestThread();
+      }
 
       if (!mainThread)
           continue;
@@ -676,7 +671,7 @@ namespace {
 
                 tte->save(posKey, value_to_tt(value, ss->ply), BOUND_EXACT,
                           std::min(DEPTH_MAX - ONE_PLY, depth + 6 * ONE_PLY),
-                          MOVE_NONE, VALUE_NONE, TT.generation());
+                          MOVE_NONE, VALUE_NONE, TT.generation(), thisThread->bestSmpThread);
 
                 return value;
             }
@@ -708,7 +703,7 @@ namespace {
                                          : -(ss-1)->staticEval + 2 * Eval::Tempo;
 
         tte->save(posKey, VALUE_NONE, BOUND_NONE, DEPTH_NONE, MOVE_NONE,
-                  ss->staticEval, TT.generation());
+                  ss->staticEval, TT.generation(), thisThread->bestSmpThread);
     }
 
     if (skipEarlyPruning)
@@ -1135,7 +1130,8 @@ moves_loop: // When in check search starts from here
         tte->save(posKey, value_to_tt(bestValue, ss->ply),
                   bestValue >= beta ? BOUND_LOWER :
                   PvNode && bestMove ? BOUND_EXACT : BOUND_UPPER,
-                  depth, bestMove, ss->staticEval, TT.generation());
+                  depth, bestMove, ss->staticEval, TT.generation(),
+                  thisThread->bestSmpThread);
 
     assert(bestValue > -VALUE_INFINITE && bestValue < VALUE_INFINITE);
 
@@ -1165,6 +1161,7 @@ moves_loop: // When in check search starts from here
     Value bestValue, value, ttValue, futilityValue, futilityBase, oldAlpha;
     bool ttHit, givesCheck, evasionPrunable;
     Depth ttDepth;
+    Thread* thisThread = pos.this_thread();
 
     if (PvNode)
     {
@@ -1232,7 +1229,8 @@ moves_loop: // When in check search starts from here
         {
             if (!ttHit)
                 tte->save(pos.key(), value_to_tt(bestValue, ss->ply), BOUND_LOWER,
-                          DEPTH_NONE, MOVE_NONE, ss->staticEval, TT.generation());
+                          DEPTH_NONE, MOVE_NONE, ss->staticEval, TT.generation(),
+                          thisThread->bestSmpThread);
 
             return bestValue;
         }
@@ -1328,7 +1326,8 @@ moves_loop: // When in check search starts from here
               else // Fail high
               {
                   tte->save(posKey, value_to_tt(value, ss->ply), BOUND_LOWER,
-                            ttDepth, move, ss->staticEval, TT.generation());
+                            ttDepth, move, ss->staticEval, TT.generation(), 
+                            thisThread->bestSmpThread);
 
                   return value;
               }
@@ -1343,7 +1342,8 @@ moves_loop: // When in check search starts from here
 
     tte->save(posKey, value_to_tt(bestValue, ss->ply),
               PvNode && bestValue > oldAlpha ? BOUND_EXACT : BOUND_UPPER,
-              ttDepth, bestMove, ss->staticEval, TT.generation());
+              ttDepth, bestMove, ss->staticEval, TT.generation(),
+              thisThread->bestSmpThread);
 
     assert(bestValue > -VALUE_INFINITE && bestValue < VALUE_INFINITE);
 

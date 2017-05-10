@@ -71,6 +71,7 @@ public:
   MoveStats counterMoves;
   HistoryStats history;
   CounterMoveHistoryStats counterMoveHistory;
+  bool bestSmpThread;
 };
 
 
@@ -99,8 +100,11 @@ struct ThreadPool : public std::vector<Thread*> {
   void read_uci_options();
   uint64_t nodes_searched() const;
   uint64_t tb_hits() const;
+  Thread* getBestThread();
+  void    setBestThread();
 
 private:
+  Mutex mutex;
   StateListPtr setupStates;
 };
 

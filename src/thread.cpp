@@ -221,3 +221,33 @@ void ThreadPool::start_thinking(Position& pos, StateListPtr& states,
 
   main()->start_searching();
 }
+
+
+Thread* ThreadPool::getBestThread() {
+
+  Thread* bestThread = main();
+  for (Thread* th : *this)
+  {
+      Depth depthDiff = th->completedDepth - bestThread->completedDepth;
+      Value scoreDiff = th->rootMoves[0].score - bestThread->rootMoves[0].score;
+
+      if (scoreDiff > 0 && depthDiff >= 0)
+          bestThread = th;
+  }
+  return bestThread;
+}
+
+
+void ThreadPool::setBestThread() {
+
+  if (size() > 1)
+  {
+      mutex.lock();
+
+      Thread* bestThread = getBestThread();
+      for (Thread* th : Threads)
+          th->bestSmpThread = th == bestThread;
+
+      mutex.unlock();
+  }
+}
