@@ -954,6 +954,46 @@ moves_loop: // When in check search starts from here
           continue;
       }
 
+      // Test for cutoffs caused by other threads.
+      if (!PvNode && depth >= 3 * ONE_PLY && Threads.size() > 1)
+      {
+          tte = TT.probe(posKey, ttHit);
+          ttValue = ttHit ? value_from_tt(tte->value(), ss->ply) : VALUE_NONE;
+          ttMove =  rootNode ? thisThread->rootMoves[thisThread->PVIdx].pv[0]
+                  : ttHit    ? tte->move() : MOVE_NONE;
+
+          // At non-PV nodes we check for an early TT cutoff
+          if (   ttHit
+              && tte->depth() >= depth
+              && ttValue != VALUE_NONE // Possible in case of TT access race
+              && (ttValue >= beta ? (tte->bound() & BOUND_LOWER)
+                                  : (tte->bound() & BOUND_UPPER)))
+          {
+              // If ttMove is quiet, update move sorting heuristics on TT hit
+              if (ttMove)
+              {
+                  if (ttValue >= beta)
+                  {
+                      if (!pos.capture_or_promotion(ttMove))
+                          update_stats(pos, ss, ttMove, nullptr, 0, stat_bonus(depth));
+
+                      // Extra penalty for a quiet TT move in previous ply when it gets refuted
+                      if ((ss-1)->moveCount == 1 && !pos.captured_piece())
+                          update_cm_stats(ss-1, pos.piece_on(prevSq), prevSq, -stat_bonus(depth + ONE_PLY));
+                  }
+                  // Penalty for a quiet ttMove that fails low
+                  else if (!pos.capture_or_promotion(ttMove))
+                  {
+                      int penalty = -stat_bonus(depth);
+                      thisThread->history.update(pos.side_to_move(), ttMove, penalty);
+                      update_cm_stats(ss, pos.moved_piece(ttMove), to_sq(ttMove), penalty);
+                  }
+              }
+
+              return ttValue;
+          }
+      }
+
       // Update the current move (this must be done after singular extension search)
       ss->currentMove = move;
       ss->counterMoves = &thisThread->counterMoveHistory[moved_piece][to_sq(move)];
