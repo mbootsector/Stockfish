@@ -641,6 +641,10 @@ namespace {
             // If the pawn is free to advance, then increase the bonus
             if (pos.empty(blockSq))
             {
+                // Adjust bonus based on the king's proximity in middlegame.
+                if (ei.attackedBy[Us][ALL_PIECES] & s)
+                    mbonus += distance(pos.square<KING>(Them), blockSq) * 4 * rr;
+
                 // If there is a rook or queen attacking/defending the pawn from behind,
                 // consider all the squaresToQueen. Otherwise consider only the squares
                 // in the pawn's path attacked or occupied by the enemy.
