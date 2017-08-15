@@ -143,7 +143,7 @@ namespace {
   Value DrawValue[COLOR_NB];
 
   template <NodeType NT>
-  Value search(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth, bool cutNode, bool skipEarlyPruning);
+  Value search(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth, bool cutNode, bool skipEarlyPruning, bool exclusive);
 
   template <NodeType NT, bool InCheck>
   Value qsearch(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth = DEPTH_ZERO);
@@ -401,7 +401,7 @@ void Thread::search() {
           // high/low anymore.
           while (true)
           {
-              bestValue = ::search<PV>(rootPos, ss, alpha, beta, rootDepth, false, false);
+              bestValue = ::search<PV>(rootPos, ss, alpha, beta, rootDepth, false, false, false);
 
               // Bring the best move to the front. It is critical that sorting
               // is done with a stable algorithm because all the values but the
@@ -532,7 +532,7 @@ namespace {
   // search<>() is the main search function for both PV and non-PV nodes
 
   template <NodeType NT>
-  Value search(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth, bool cutNode, bool skipEarlyPruning) {
+  Value search(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth, bool cutNode, bool skipEarlyPruning, bool exclusive) {
 
     const bool PvNode = NT == PV;
     const bool rootNode = PvNode && (ss-1)->ply == 0;
@@ -638,6 +638,10 @@ namespace {
         return ttValue;
     }
 
+    if (exclusive && ttHit && tte->busy())
+        return VALUE_BUSY;
+    tte->setBusyFlag();
+
     // Step 4a. Tablebase probe
     if (!rootNode && TB::Cardinality)
     {
@@ -664,6 +668,7 @@ namespace {
                 tte->save(posKey, value_to_tt(value, ss->ply), BOUND_EXACT,
                           std::min(DEPTH_MAX - ONE_PLY, depth + 6 * ONE_PLY),
                           MOVE_NONE, VALUE_NONE, TT.generation());
+                tte->clearBusyFlag();
 
                 return value;
             }
@@ -707,12 +712,19 @@ namespace {
         &&  eval + razor_margin[depth / ONE_PLY] <= alpha)
     {
         if (depth <= ONE_PLY)
-            return qsearch<NonPV, false>(pos, ss, alpha, alpha+1);
+        {
+            Value v = qsearch<NonPV, false>(pos, ss, alpha, alpha+1);
+            tte->clearBusyFlag();
+            return v;
+        }
 
         Value ralpha = alpha - razor_margin[depth / ONE_PLY];
         Value v = qsearch<NonPV, false>(pos, ss, ralpha, ralpha+1);
         if (v <= ralpha)
+        {
+            tte->clearBusyFlag();
             return v;
+        }
     }
 
     // Step 7. Futility pruning: child node (skipped when in check)
@@ -721,7 +733,10 @@ namespace {
         &&  eval - futility_margin(depth) >= beta
         &&  eval < VALUE_KNOWN_WIN  // Do not return unproven wins
         &&  pos.non_pawn_material(pos.side_to_move()))
+    {
+        tte->clearBusyFlag();
         return eval;
+    }
 
     // Step 8. Null move search with verification search (is omitted in PV nodes)
     if (   !PvNode
@@ -740,7 +755,7 @@ namespace {
 
         pos.do_null_move(st);
         Value nullValue = depth-R < ONE_PLY ? -qsearch<NonPV, false>(pos, ss+1, -beta, -beta+1)
-                                            : - search<NonPV>(pos, ss+1, -beta, -beta+1, depth-R, !cutNode, true);
+                                            : - search<NonPV>(pos, ss+1, -beta, -beta+1, depth-R, !cutNode, true, false);
         pos.undo_null_move();
 
         if (nullValue >= beta)
@@ -750,14 +765,20 @@ namespace {
                 nullValue = beta;
 
             if (depth < 12 * ONE_PLY && abs(beta) < VALUE_KNOWN_WIN)
+            {
+                tte->clearBusyFlag();
                 return nullValue;
+            }
 
             // Do verification search at high depths
             Value v = depth-R < ONE_PLY ? qsearch<NonPV, false>(pos, ss, beta-1, beta)
-                                        :  search<NonPV>(pos, ss, beta-1, beta, depth-R, false, true);
+                                        :  search<NonPV>(pos, ss, beta-1, beta, depth-R, false, true, false);
 
             if (v >= beta)
+            {
+                tte->clearBusyFlag();
                 return nullValue;
+            }
         }
     }
 
@@ -782,10 +803,13 @@ namespace {
 
                 assert(depth >= 5 * ONE_PLY);
                 pos.do_move(move, st);
-                value = -search<NonPV>(pos, ss+1, -rbeta, -rbeta+1, depth - 4 * ONE_PLY, !cutNode, false);
+                value = -search<NonPV>(pos, ss+1, -rbeta, -rbeta+1, depth - 4 * ONE_PLY, !cutNode, false, false);
                 pos.undo_move(move);
                 if (value >= rbeta)
+                {
+                    tte->clearBusyFlag();
                     return value;
+                }
             }
     }
 
@@ -795,7 +819,7 @@ namespace {
         && (PvNode || ss->staticEval + 256 >= beta))
     {
         Depth d = (3 * depth / (4 * ONE_PLY) - 2) * ONE_PLY;
-        search<NT>(pos, ss, alpha, beta, d, cutNode, true);
+        search<NT>(pos, ss, alpha, beta, d, cutNode, true, false);
 
         tte = TT.probe(posKey, ttHit);
         ttMove = ttHit ? tte->move() : MOVE_NONE;
@@ -840,6 +864,8 @@ moves_loop: // When in check search starts from here
                                   thisThread->rootMoves.end(), move))
           continue;
 
+      bool nextExclusive = Threads.size() > 1 && mp.is_deferrable() && ybwcCondition && depth >= Depth(3);
+
       ss->moveCount = ++moveCount;
 
       if (rootNode && thisThread == Threads.main() && Time.elapsed() > 3000)
@@ -875,7 +901,7 @@ moves_loop: // When in check search starts from here
           Value rBeta = std::max(ttValue - 2 * depth / ONE_PLY, -VALUE_MATE);
           Depth d = (depth / (2 * ONE_PLY)) * ONE_PLY;
           ss->excludedMove = move;
-          value = search<NonPV>(pos, ss, rBeta - 1, rBeta, d, cutNode, true);
+          value = search<NonPV>(pos, ss, rBeta - 1, rBeta, d, cutNode, true, nextExclusive);
           ss->excludedMove = MOVE_NONE;
 
           if (value < rBeta)
@@ -951,31 +977,6 @@ moves_loop: // When in check search starts from here
       // Step 14. Make the move
       pos.do_move(move, st, givesCheck);
 
-      // ABDADA - We delay search of nodes which are busy (being searched by other threads).
-      //          If the node is not busy, mark it as such and search immediately.
-      TTEntry* tteNext;
-      bool doAbdada = Threads.size() > 1 && ybwcCondition && depth >= Depth(2);
-
-      if (doAbdada)
-      {
-          bool tteNextHit;
-          tteNext = TT.probe(pos.key(), tteNextHit);
-          if (tteNextHit)
-          {
-              if (mp.is_deferrable() && tteNext->busy())
-              {
-                  pos.undo_move(move);
-                  mp.defer(move);
-                  continue;
-              }
-          }
-          else
-          {
-              tteNext->save(pos.key(), VALUE_NONE, BOUND_NONE, DEPTH_NONE, MOVE_NONE, VALUE_NONE, TT.generation());
-          }
-          tteNext->setBusyFlag();
-      }
-
       // Step 15. Reduced depth search (LMR). If the move fails high it will be
       // re-searched at full depth.
       if (    depth >= 3 * ONE_PLY
@@ -1022,7 +1023,16 @@ moves_loop: // When in check search starts from here
 
           Depth d = std::max(newDepth - r, ONE_PLY);
 
-          value = -search<NonPV>(pos, ss+1, -(alpha+1), -alpha, d, true, false);
+          value = -search<NonPV>(pos, ss+1, -(alpha+1), -alpha, d, true, false, nextExclusive);
+
+          // ABDADA - We delay search of nodes which are busy (being searched by other threads).
+          if (value == -VALUE_BUSY)
+          {
+              mp.defer(move);
+              ss->moveCount = --moveCount;
+              pos.undo_move(move);
+              continue;
+          }
 
           doFullDepthSearch = (value > alpha && d != newDepth);
       }
@@ -1034,7 +1044,16 @@ moves_loop: // When in check search starts from here
           value = newDepth <   ONE_PLY ?
                             givesCheck ? -qsearch<NonPV,  true>(pos, ss+1, -(alpha+1), -alpha)
                                        : -qsearch<NonPV, false>(pos, ss+1, -(alpha+1), -alpha)
-                                       : - search<NonPV>(pos, ss+1, -(alpha+1), -alpha, newDepth, !cutNode, false);
+                                       : - search<NonPV>(pos, ss+1, -(alpha+1), -alpha, newDepth, !cutNode, false, nextExclusive);
+
+      // ABDADA - We delay search of nodes which are busy (being searched by other threads).
+      if (value == -VALUE_BUSY)
+      {
+          mp.defer(move);
+          ss->moveCount = --moveCount;
+          pos.undo_move(move);
+          continue;
+      }
 
       // For PV nodes only, do a full PV search on the first move or after a fail
       // high (in the latter case search only if value < beta), otherwise let the
@@ -1047,14 +1066,19 @@ moves_loop: // When in check search starts from here
           value = newDepth <   ONE_PLY ?
                             givesCheck ? -qsearch<PV,  true>(pos, ss+1, -beta, -alpha)
                                        : -qsearch<PV, false>(pos, ss+1, -beta, -alpha)
-                                       : - search<PV>(pos, ss+1, -beta, -alpha, newDepth, false, false);
+                                       : - search<PV>(pos, ss+1, -beta, -alpha, newDepth, false, false, nextExclusive);
       }
-
-      if (doAbdada)
-          tteNext->clearBusyFlag();
 
       // Step 17. Undo move
       pos.undo_move(move);
+
+      // ABDADA - We delay search of nodes which are busy (being searched by other threads).
+      if (value == -VALUE_BUSY)
+      {
+          mp.defer(move);
+          ss->moveCount = --moveCount;
+          continue;
+      }
 
       assert(value > -VALUE_INFINITE && value < VALUE_INFINITE);
 
@@ -1063,7 +1087,10 @@ moves_loop: // When in check search starts from here
       // the search cannot be trusted, and we return immediately without
       // updating best move, PV and TT.
       if (Threads.stop.load(std::memory_order_relaxed))
+      {
+          tte->clearBusyFlag();
           return VALUE_ZERO;
+      }
 
       if (rootNode)
       {
@@ -1161,6 +1188,7 @@ moves_loop: // When in check search starts from here
                   bestValue >= beta ? BOUND_LOWER :
                   PvNode && bestMove ? BOUND_EXACT : BOUND_UPPER,
                   depth, bestMove, ss->staticEval, TT.generation());
+    tte->clearBusyFlag();
 
     assert(bestValue > -VALUE_INFINITE && bestValue < VALUE_INFINITE);
 
