@@ -954,7 +954,7 @@ moves_loop: // When in check search starts from here
       // ABDADA - We delay search of nodes which are busy (being searched by other threads).
       //          If the node is not busy, mark it as such and search immediately.
       TTEntry* tteNext;
-      bool doAbdada = Threads.size() > 1 && ybwcCondition && depth >= Depth(5);
+      bool doAbdada = Threads.size() > 1 && ybwcCondition && depth >= Depth(2);
 
       if (doAbdada)
       {
