@@ -822,6 +822,8 @@ moves_loop: // When in check search starts from here
     skipQuiets = false;
     ttCapture = false;
 
+    bool ybwcCondition = false;
+
     // Step 11. Loop through moves
     // Loop through all pseudo-legal moves until no moves remain or a beta cutoff occurs
     while ((move = mp.next_move(skipQuiets)) != MOVE_NONE)
@@ -949,6 +951,31 @@ moves_loop: // When in check search starts from here
       // Step 14. Make the move
       pos.do_move(move, st, givesCheck);
 
+      // ABDADA - We delay search of nodes which are busy (being searched by other threads).
+      //          If the node is not busy, mark it as such and search immediately.
+      TTEntry* tteNext;
+      bool doAbdada = Threads.size() > 1 && ybwcCondition && depth >= Depth(5);
+
+      if (doAbdada)
+      {
+          bool tteNextHit;
+          tteNext = TT.probe(pos.key(), tteNextHit);
+          if (tteNextHit)
+          {
+              if (mp.is_deferrable() && tteNext->busy())
+              {
+                  pos.undo_move(move);
+                  mp.defer(move);
+                  continue;
+              }
+          }
+          else
+          {
+              tteNext->save(pos.key(), VALUE_NONE, BOUND_NONE, DEPTH_NONE, MOVE_NONE, VALUE_NONE, TT.generation());
+          }
+          tteNext->setBusyFlag();
+      }
+
       // Step 15. Reduced depth search (LMR). If the move fails high it will be
       // re-searched at full depth.
       if (    depth >= 3 * ONE_PLY
@@ -1023,6 +1050,9 @@ moves_loop: // When in check search starts from here
                                        : - search<PV>(pos, ss+1, -beta, -alpha, newDepth, false, false);
       }
 
+      if (doAbdada)
+          tteNext->clearBusyFlag();
+
       // Step 17. Undo move
       pos.undo_move(move);
 
@@ -1088,6 +1118,8 @@ moves_loop: // When in check search starts from here
 
       if (!captureOrPromotion && move != bestMove && quietCount < 64)
           quietsSearched[quietCount++] = move;
+
+      ybwcCondition = true;
     }
 
     // The following condition would detect a stop only after move loop has been

@@ -26,6 +26,7 @@ namespace {
 
   enum Stages {
     MAIN_SEARCH, CAPTURES_INIT, GOOD_CAPTURES, KILLERS, COUNTERMOVE, QUIET_INIT, QUIET, BAD_CAPTURES,
+    DEFERRED, DEFERRED_2,
     EVASION, EVASIONS_INIT, ALL_EVASIONS,
     PROBCUT, PROBCUT_INIT, PROBCUT_CAPTURES,
     QSEARCH_WITH_CHECKS, QCAPTURES_1_INIT, QCAPTURES_1, QCHECKS,
@@ -76,6 +77,7 @@ MovePicker::MovePicker(const Position& p, Move ttm, Depth d, const ButterflyHist
   stage = pos.checkers() ? EVASION : MAIN_SEARCH;
   ttMove = ttm && pos.pseudo_legal(ttm) ? ttm : MOVE_NONE;
   stage += (ttMove == MOVE_NONE);
+  deferredMoveCount = 0;
 }
 
 MovePicker::MovePicker(const Position& p, Move ttm, Depth d, const ButterflyHistory* mh,
@@ -102,6 +104,7 @@ MovePicker::MovePicker(const Position& p, Move ttm, Depth d, const ButterflyHist
 
   ttMove = ttm && pos.pseudo_legal(ttm) ? ttm : MOVE_NONE;
   stage += (ttMove == MOVE_NONE);
+  deferredMoveCount = 0;
 }
 
 MovePicker::MovePicker(const Position& p, Move ttm, Value th)
@@ -118,6 +121,8 @@ MovePicker::MovePicker(const Position& p, Move ttm, Value th)
           && pos.see_ge(ttm, threshold) ? ttm : MOVE_NONE;
 
   stage += (ttMove == MOVE_NONE);
+
+  deferredMoveCount = 0;
 }
 
 /// score() assigns a numerical value to each move in a list, used for sorting.
@@ -231,11 +236,20 @@ Move MovePicker::next_move(bool skipQuiets) {
       }
       ++stage;
       cur = moves; // Point to beginning of bad captures
-      /* fallthrough */
 
   case BAD_CAPTURES:
       if (cur < endBadCaptures)
           return *cur++;
+      /* fallthrough */
+
+  case DEFERRED:
+      currentDeferredMove = 0;
+      stage = DEFERRED_2;
+      /* Fallthrough */
+
+  case DEFERRED_2:
+      if (currentDeferredMove < deferredMoveCount)
+          return deferredMoves[currentDeferredMove++];
       break;
 
   case EVASIONS_INIT:
@@ -322,4 +336,13 @@ Move MovePicker::next_move(bool skipQuiets) {
   }
 
   return MOVE_NONE;
+}
+
+
+void MovePicker::defer(Move m) {
+  deferredMoves[deferredMoveCount++] = m;
+}
+
+bool MovePicker::is_deferrable() {
+  return stage != DEFERRED_2;
 }

@@ -103,6 +103,8 @@ public:
   MovePicker(const Position&, Move, Depth, const ButterflyHistory*, const PieceToHistory**, Square);
   MovePicker(const Position&, Move, Depth, const ButterflyHistory*, const PieceToHistory**, Move, Move*);
   Move next_move(bool skipQuiets = false);
+  void defer(Move m);
+  bool is_deferrable();
 
 private:
   template<GenType> void score();
@@ -119,6 +121,8 @@ private:
   Value threshold;
   Depth depth;
   ExtMove moves[MAX_MOVES];
+  Move deferredMoves[MAX_MOVES];
+  int deferredMoveCount, currentDeferredMove;
 };
 
 #endif // #ifndef MOVEPICK_H_INCLUDED
