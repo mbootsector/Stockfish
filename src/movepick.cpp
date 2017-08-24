@@ -348,8 +348,13 @@ Move MovePicker::next_move(bool skipQuiets) {
 }
 
 
-void MovePicker::defer(Move m) {
+void MovePicker::defer(Move m, int moveCount) {
+  deferredMoveMoveCount[deferredMoveCount] = moveCount;
   deferredMoves[deferredMoveCount++] = m;
+}
+
+int MovePicker::deferred_movecount() {
+  return deferredMoveMoveCount[currentDeferredMove-1];  // currentDeferredMove updated earlier.
 }
 
 bool MovePicker::is_deferrable() {

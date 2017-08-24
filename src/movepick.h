@@ -97,7 +97,8 @@ public:
   MovePicker(const Position&, Move, Depth, const ButterflyHistory*, Square);
   MovePicker(const Position&, Move, Depth, const ButterflyHistory*, const PieceToHistory**, Move, Move*);
   Move next_move(bool skipQuiets = false);
-  void defer(Move m);
+  void defer(Move m, int moveCount);
+  int deferred_movecount();
   bool is_deferrable();
 
 private:
@@ -115,7 +116,8 @@ private:
   Value threshold;
   Depth depth;
   ExtMove moves[MAX_MOVES];
-  Move deferredMoves[MAX_MOVES];
+  Move deferredMoves[MAX_MOVES / 4];        // Deferrals are rare. A small array is enough.
+  int deferredMoveMoveCount[MAX_MOVES / 4];
   int deferredMoveCount, currentDeferredMove;
 };
 

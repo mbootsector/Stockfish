@@ -642,9 +642,13 @@ namespace {
         return ttValue;
     }
 
-    if (exclusive && ttHit && tte->busy())
-        return VALUE_BUSY;
-    tte->setBusyFlag();
+    // For ABDADAish search.
+    if (depth >= Depth(5) && ttHit)
+    {
+        if (exclusive && tte->busy())
+            return VALUE_BUSY;
+        tte->setBusyFlag();
+    }
 
     // Step 4a. Tablebase probe
     if (!rootNode && TB::Cardinality)
@@ -706,6 +710,10 @@ namespace {
         tte->save(posKey, VALUE_NONE, BOUND_NONE, DEPTH_NONE, MOVE_NONE,
                   ss->staticEval, TT.generation());
     }
+
+    // Set the ABDADAish busy flag.
+    if (depth >= Depth(5))
+        tte->setBusyFlag();
 
     if (skipEarlyPruning)
         goto moves_loop;
@@ -850,7 +858,7 @@ moves_loop: // When in check search starts from here
     skipQuiets = false;
     ttCapture = false;
 
-    bool ybwcCondition = false;
+    bool oneMoveIsSearched = false;
 
     // Step 11. Loop through moves
     // Loop through all pseudo-legal moves until no moves remain or a beta cutoff occurs
@@ -868,9 +876,8 @@ moves_loop: // When in check search starts from here
                                   thisThread->rootMoves.end(), move))
           continue;
 
-      bool nextExclusive = Threads.size() > 1 && mp.is_deferrable() && ybwcCondition && depth >= Depth(3);
-
-      ss->moveCount = ++moveCount;
+      moveCount = mp.is_deferrable() ? moveCount + 1 : mp.deferred_movecount();
+      ss->moveCount = moveCount;
 
       if (rootNode && thisThread == Threads.main() && Time.elapsed() > 3000)
           sync_cout << "info depth " << depth / ONE_PLY
@@ -905,7 +912,7 @@ moves_loop: // When in check search starts from here
           Value rBeta = std::max(ttValue - 2 * depth / ONE_PLY, -VALUE_MATE);
           Depth d = (depth / (2 * ONE_PLY)) * ONE_PLY;
           ss->excludedMove = move;
-          value = search<NonPV>(pos, ss, rBeta - 1, rBeta, d, cutNode, true, nextExclusive);
+          value = search<NonPV>(pos, ss, rBeta - 1, rBeta, d, cutNode, true, false);
           ss->excludedMove = MOVE_NONE;
 
           if (value < rBeta)
@@ -981,6 +988,8 @@ moves_loop: // When in check search starts from here
       // Step 14. Make the move
       pos.do_move(move, st, givesCheck);
 
+      bool nextExclusive = Threads.size() > 1 && mp.is_deferrable() && oneMoveIsSearched;
+
       // Step 15. Reduced depth search (LMR). If the move fails high it will be
       // re-searched at full depth.
       if (    depth >= 3 * ONE_PLY
@@ -1032,7 +1041,7 @@ moves_loop: // When in check search starts from here
           // ABDADA - We delay search of nodes which are busy (being searched by other threads).
           if (value == -VALUE_BUSY)
           {
-              mp.defer(move);
+              mp.defer(move, moveCount);
               ss->moveCount = --moveCount;
               pos.undo_move(move);
               continue;
@@ -1053,7 +1062,7 @@ moves_loop: // When in check search starts from here
       // ABDADA - We delay search of nodes which are busy (being searched by other threads).
       if (value == -VALUE_BUSY)
       {
-          mp.defer(move);
+          mp.defer(move, moveCount);
           ss->moveCount = --moveCount;
           pos.undo_move(move);
           continue;
@@ -1079,7 +1088,7 @@ moves_loop: // When in check search starts from here
       // ABDADA - We delay search of nodes which are busy (being searched by other threads).
       if (value == -VALUE_BUSY)
       {
-          mp.defer(move);
+          mp.defer(move, moveCount);
           ss->moveCount = --moveCount;
           continue;
       }
@@ -1150,7 +1159,7 @@ moves_loop: // When in check search starts from here
       if (!captureOrPromotion && move != bestMove && quietCount < 64)
           quietsSearched[quietCount++] = move;
 
-      ybwcCondition = true;
+      oneMoveIsSearched = true;
     }
 
     // The following condition would detect a stop only after move loop has been
