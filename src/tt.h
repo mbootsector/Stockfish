@@ -64,7 +64,7 @@ struct TTEntry {
         key16     = (uint16_t)(k >> 48);
         value16   = (int16_t)v;
         eval16    = (int16_t)ev;
-        genBound8 = (uint8_t)(g | b | ((k >> 48 == key16) ? busy() : 0));  // Preserve busy flag.
+        genBound8 = (uint8_t)(g | b);
         depth8    = (int8_t)(d / ONE_PLY);
     }
   }

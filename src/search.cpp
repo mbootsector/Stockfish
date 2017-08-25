@@ -558,7 +558,9 @@ namespace {
     bool captureOrPromotion, doFullDepthSearch, moveCountPruning, skipQuiets, ttCapture;
     Piece movedPiece;
     int moveCount, quietCount;
-
+    const Depth AbdadaDepth = Depth(7);
+    bool busyWasSet = false;
+    
     // Step 1. Initialize node
     Thread* thisThread = pos.this_thread();
     inCheck = pos.checkers();
@@ -643,11 +645,12 @@ namespace {
     }
 
     // For ABDADAish search.
-    if (depth >= Depth(5) && ttHit)
+    if (depth >= AbdadaDepth && ttHit)
     {
         if (exclusive && tte->busy())
             return VALUE_BUSY;
         tte->setBusyFlag();
+        busyWasSet = true;
     }
 
     // Step 4a. Tablebase probe
@@ -676,7 +679,6 @@ namespace {
                 tte->save(posKey, value_to_tt(value, ss->ply), BOUND_EXACT,
                           std::min(DEPTH_MAX - ONE_PLY, depth + 6 * ONE_PLY),
                           MOVE_NONE, VALUE_NONE, TT.generation());
-                tte->clearBusyFlag();
 
                 return value;
             }
@@ -712,8 +714,11 @@ namespace {
     }
 
     // Set the ABDADAish busy flag.
-    if (depth >= Depth(5))
+    if (depth >= AbdadaDepth)
+    {
         tte->setBusyFlag();
+        busyWasSet = true;
+    }
 
     if (skipEarlyPruning)
         goto moves_loop;
@@ -724,19 +729,12 @@ namespace {
         &&  eval + razor_margin[depth / ONE_PLY] <= alpha)
     {
         if (depth <= ONE_PLY)
-        {
-            Value v = qsearch<NonPV, false>(pos, ss, alpha, alpha+1);
-            tte->clearBusyFlag();
-            return v;
-        }
+            return qsearch<NonPV, false>(pos, ss, alpha, alpha+1);
 
         Value ralpha = alpha - razor_margin[depth / ONE_PLY];
         Value v = qsearch<NonPV, false>(pos, ss, ralpha, ralpha+1);
         if (v <= ralpha)
-        {
-            tte->clearBusyFlag();
             return v;
-        }
     }
 
     // Step 7. Futility pruning: child node (skipped when in check)
@@ -745,10 +743,7 @@ namespace {
         &&  eval - futility_margin(depth) >= beta
         &&  eval < VALUE_KNOWN_WIN  // Do not return unproven wins
         &&  pos.non_pawn_material(pos.side_to_move()))
-    {
-        tte->clearBusyFlag();
         return eval;
-    }
 
     // Step 8. Null move search with verification search (is omitted in PV nodes)
     if (   !PvNode
@@ -778,7 +773,8 @@ namespace {
 
             if (depth < 12 * ONE_PLY && abs(beta) < VALUE_KNOWN_WIN)
             {
-                tte->clearBusyFlag();
+                if (busyWasSet)
+                    tte->clearBusyFlag();
                 return nullValue;
             }
 
@@ -788,7 +784,8 @@ namespace {
 
             if (v >= beta)
             {
-                tte->clearBusyFlag();
+                if (busyWasSet)
+                    tte->clearBusyFlag();
                 return nullValue;
             }
         }
@@ -818,10 +815,7 @@ namespace {
                 value = -search<NonPV>(pos, ss+1, -rbeta, -rbeta+1, depth - 4 * ONE_PLY, !cutNode, false, false);
                 pos.undo_move(move);
                 if (value >= rbeta)
-                {
-                    tte->clearBusyFlag();
                     return value;
-                }
             }
     }
 
@@ -1101,7 +1095,8 @@ moves_loop: // When in check search starts from here
       // updating best move, PV and TT.
       if (Threads.stop.load(std::memory_order_relaxed))
       {
-          tte->clearBusyFlag();
+          if (busyWasSet)
+              tte->clearBusyFlag();
           return VALUE_ZERO;
       }
 
@@ -1201,7 +1196,8 @@ moves_loop: // When in check search starts from here
                   bestValue >= beta ? BOUND_LOWER :
                   PvNode && bestMove ? BOUND_EXACT : BOUND_UPPER,
                   depth, bestMove, ss->staticEval, TT.generation());
-    tte->clearBusyFlag();
+    if (busyWasSet)
+        tte->clearBusyFlag();
 
     assert(bestValue > -VALUE_INFINITE && bestValue < VALUE_INFINITE);
 
