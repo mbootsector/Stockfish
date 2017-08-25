@@ -815,7 +815,11 @@ namespace {
                 value = -search<NonPV>(pos, ss+1, -rbeta, -rbeta+1, depth - 4 * ONE_PLY, !cutNode, false, false);
                 pos.undo_move(move);
                 if (value >= rbeta)
+		{
+	            if (busyWasSet)
+        	        tte->clearBusyFlag();
                     return value;
+		}
             }
     }
 
