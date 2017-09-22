@@ -62,6 +62,12 @@ namespace {
   // Different node types, used as a template parameter
   enum NodeType { NonPV, PV };
 
+  const Depth MC_R = 5 * ONE_PLY;
+  const Depth MC_MIN_DEPTH = 7 * ONE_PLY;
+  const int MC_M = 3;
+  const int MC_C = 3;
+  const Value MC_Margin = Value(0);
+
   // Sizes and phases of the skip-blocks, used for distributing search depths across the threads
   const int skipSize[]  = { 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4 };
   const int skipPhase[] = { 0, 1, 0, 1, 2, 3, 0, 1, 2, 3, 4, 5, 0, 1, 2, 3, 4, 5, 6, 7 };
@@ -781,6 +787,83 @@ namespace {
             }
     }
 
+    // MultiCut at Cut nodes
+    if(   !PvNode
+       &&  cutNode
+       &&  depth >= MC_MIN_DEPTH)
+    {
+        const PieceToHistory* contHist[] = { (ss-1)->contHistory, (ss-2)->contHistory, nullptr, (ss-4)->contHistory };
+        Move countermove = thisThread->counterMoves[pos.piece_on(prevSq)][prevSq];
+        uint64_t nodeCounts[MC_M];
+        Move moves[MC_M];
+
+        MovePicker mp(pos, ttMove, depth, &thisThread->mainHistory, contHist, countermove, ss->killers);
+
+        int moveCountMC = 0, failHighCount = 0;
+        Value valueMC;
+        const Value betaMC = beta + MC_Margin;
+
+        while (    moveCountMC < MC_M
+               && (move = mp.next_move(false)) != MOVE_NONE)
+        {
+            assert(is_ok(move));
+
+            if (move == excludedMove)
+                continue;
+        
+            // Check for legality just before making the move
+            if (!pos.legal(move))
+                continue;
+
+            givesCheck =  type_of(move) == NORMAL && !pos.discovered_check_candidates()
+                      ? pos.check_squares(type_of(pos.piece_on(from_sq(move)))) & to_sq(move)
+                      : pos.gives_check(move);
+
+            captureOrPromotion = pos.capture_or_promotion(move);
+            extension = givesCheck && pos.see_ge(move) ? ONE_PLY : 0 * ONE_PLY;
+            movedPiece = pos.moved_piece(move);
+            nodeCounts[failHighCount] = thisThread->nodes;
+
+            ss->currentMove = move;
+            ss->contHistory = &thisThread->contHistory[movedPiece][to_sq(move)];
+
+            pos.do_move(move, st, givesCheck);
+            valueMC = -search<NonPV>(pos, ss+1, -betaMC, -betaMC+1, depth + extension - MC_R, !cutNode, false);
+            pos.undo_move(move);
+            
+            assert(valueMC > -VALUE_INFINITE && valueMC < VALUE_INFINITE);
+
+            if(valueMC >= betaMC)
+            {
+                 nodeCounts[failHighCount] = thisThread->nodes - nodeCounts[moveCountMC];
+                 moves[failHighCount] = move;
+                 if (++failHighCount >= MC_C)
+                 {
+                     // Find smallest subtree. This is sometimes incorrect due to TT cutoffs.
+                     uint64_t smallest = nodeCounts[0];
+                     int index = 0;
+                     for (int i = 1; i < failHighCount; i++)
+                     {
+                        if (nodeCounts[i] < smallest)
+                        {
+                            smallest = nodeCounts[i];
+                            index = i;
+                        }
+                     }
+
+                     if (!pos.capture_or_promotion(moves[index]))
+                         update_stats(pos, ss, moves[index], quietsSearched, quietCount, stat_bonus(depth - MC_R));
+                     return beta;
+                 }
+            }
+
+            moveCountMC++;
+
+            if (!captureOrPromotion && quietCount < 64)
+                quietsSearched[quietCount++] = move;
+        }
+    }
+
     // Step 10. Internal iterative deepening (skipped when in check)
     if (    depth >= 6 * ONE_PLY
         && !ttMove
@@ -813,6 +896,7 @@ moves_loop: // When in check search starts from here
                            &&  tte->depth() >= depth - 3 * ONE_PLY;
     skipQuiets = false;
     ttCapture = false;
+    quietCount = 0;
 
     // Step 11. Loop through moves
     // Loop through all pseudo-legal moves until no moves remain or a beta cutoff occurs
