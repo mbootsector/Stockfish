@@ -62,9 +62,9 @@ namespace {
   // Different node types, used as a template parameter
   enum NodeType { NonPV, PV };
 
-  const Depth MC_R = 5 * ONE_PLY;
-  const Depth MC_MIN_DEPTH = 7 * ONE_PLY;
-  const int MC_M = 3;
+  const Depth MC_R = 4 * ONE_PLY;
+  const Depth MC_MIN_DEPTH = 5 * ONE_PLY;
+  const int MC_M = 4;
   const int MC_C = 3;
   const Value MC_Margin = Value(0);
 
@@ -541,7 +541,7 @@ namespace {
     assert(!(PvNode && cutNode));
     assert(depth / ONE_PLY * ONE_PLY == depth);
 
-    Move pv[MAX_PLY+1], quietsSearched[64];
+    Move pv[MAX_PLY+1], quietsSearched[64], probCutMoves[64];
     StateInfo st;
     TTEntry* tte;
     Key posKey;
@@ -552,6 +552,7 @@ namespace {
     bool captureOrPromotion, doFullDepthSearch, moveCountPruning, skipQuiets, ttCapture;
     Piece movedPiece;
     int moveCount, quietCount;
+    int probCutMoveCount = 0;
 
     // Step 1. Initialize node
     Thread* thisThread = pos.this_thread();
@@ -721,45 +722,7 @@ namespace {
         &&  pos.non_pawn_material(pos.side_to_move()))
         return eval;
 
-    // Step 8. Null move search with verification search (is omitted in PV nodes)
-    if (   !PvNode
-        &&  eval >= beta
-        && (ss->staticEval >= beta - 35 * (depth / ONE_PLY - 6) || depth >= 13 * ONE_PLY)
-        &&  pos.non_pawn_material(pos.side_to_move()))
-    {
-
-        assert(eval - beta >= 0);
-
-        // Null move dynamic reduction based on depth and value
-        Depth R = ((823 + 67 * depth / ONE_PLY) / 256 + std::min((eval - beta) / PawnValueMg, 3)) * ONE_PLY;
-
-        ss->currentMove = MOVE_NULL;
-        ss->contHistory = &thisThread->contHistory[NO_PIECE][0];
-
-        pos.do_null_move(st);
-        Value nullValue = depth-R < ONE_PLY ? -qsearch<NonPV, false>(pos, ss+1, -beta, -beta+1)
-                                            : - search<NonPV>(pos, ss+1, -beta, -beta+1, depth-R, !cutNode, true);
-        pos.undo_null_move();
-
-        if (nullValue >= beta)
-        {
-            // Do not return unproven mate scores
-            if (nullValue >= VALUE_MATE_IN_MAX_PLY)
-                nullValue = beta;
-
-            if (depth < 12 * ONE_PLY && abs(beta) < VALUE_KNOWN_WIN)
-                return nullValue;
-
-            // Do verification search at high depths
-            Value v = depth-R < ONE_PLY ? qsearch<NonPV, false>(pos, ss, beta-1, beta)
-                                        :  search<NonPV>(pos, ss, beta-1, beta, depth-R, false, true);
-
-            if (v >= beta)
-                return nullValue;
-        }
-    }
-
-    // Step 9. ProbCut (skipped when in check)
+    // Step 8. ProbCut (skipped when in check)
     // If we have a good enough capture and a reduced search returns a value
     // much above beta, we can (almost) safely prune the previous move.
     if (   !PvNode
@@ -782,20 +745,21 @@ namespace {
                 pos.do_move(move, st);
                 value = -search<NonPV>(pos, ss+1, -rbeta, -rbeta+1, depth - 4 * ONE_PLY, !cutNode, false);
                 pos.undo_move(move);
+
                 if (value >= rbeta)
                     return value;
+
+                probCutMoves[probCutMoveCount++] = move;
             }
     }
 
-    // MultiCut at Cut nodes
+    // Step 9. MultiCut at Cut nodes
     if(   !PvNode
        &&  cutNode
        &&  depth >= MC_MIN_DEPTH)
     {
         const PieceToHistory* contHist[] = { (ss-1)->contHistory, (ss-2)->contHistory, nullptr, (ss-4)->contHistory };
         Move countermove = thisThread->counterMoves[pos.piece_on(prevSq)][prevSq];
-        uint64_t nodeCounts[MC_M];
-        Move moves[MC_M];
 
         MovePicker mp(pos, ttMove, depth, &thisThread->mainHistory, contHist, countermove, ss->killers);
 
@@ -810,6 +774,16 @@ namespace {
 
             if (move == excludedMove)
                 continue;
+
+            bool triedAlready = false;
+            for (int i = 0; i < probCutMoveCount; i++) {
+                if (move == probCutMoves[i]) {
+                    triedAlready = true;
+                    break;
+                }
+            }
+            if (triedAlready)
+                continue;
         
             // Check for legality just before making the move
             if (!pos.legal(move))
@@ -822,7 +796,6 @@ namespace {
             captureOrPromotion = pos.capture_or_promotion(move);
             extension = givesCheck && pos.see_ge(move) ? ONE_PLY : 0 * ONE_PLY;
             movedPiece = pos.moved_piece(move);
-            nodeCounts[failHighCount] = thisThread->nodes;
 
             ss->currentMove = move;
             ss->contHistory = &thisThread->contHistory[movedPiece][to_sq(move)];
@@ -834,33 +807,12 @@ namespace {
             assert(valueMC > -VALUE_INFINITE && valueMC < VALUE_INFINITE);
 
             if(valueMC >= betaMC)
-            {
-                 nodeCounts[failHighCount] = thisThread->nodes - nodeCounts[moveCountMC];
-                 moves[failHighCount] = move;
                  if (++failHighCount >= MC_C)
-                 {
-                     // Find smallest subtree. This is sometimes incorrect due to TT cutoffs.
-                     uint64_t smallest = nodeCounts[0];
-                     int index = 0;
-                     for (int i = 1; i < failHighCount; i++)
-                     {
-                        if (nodeCounts[i] < smallest)
-                        {
-                            smallest = nodeCounts[i];
-                            index = i;
-                        }
-                     }
-
-                     if (!pos.capture_or_promotion(moves[index]))
-                         update_stats(pos, ss, moves[index], quietsSearched, quietCount, stat_bonus(depth - MC_R));
                      return beta;
-                 }
-            }
 
-            moveCountMC++;
-
-            if (!captureOrPromotion && quietCount < 64)
-                quietsSearched[quietCount++] = move;
+            // If we can't meet the cutoff criteria, exit early.
+            if (MC_M - ++moveCountMC < MC_C - failHighCount)
+                break;
         }
     }
 

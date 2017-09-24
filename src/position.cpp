@@ -926,46 +926,6 @@ void Position::do_castling(Color us, Square from, Square& to, Square& rfrom, Squ
 }
 
 
-/// Position::do(undo)_null_move() is used to do(undo) a "null move": It flips
-/// the side to move without executing any move on the board.
-
-void Position::do_null_move(StateInfo& newSt) {
-
-  assert(!checkers());
-  assert(&newSt != st);
-
-  std::memcpy(&newSt, st, sizeof(StateInfo));
-  newSt.previous = st;
-  st = &newSt;
-
-  if (st->epSquare != SQ_NONE)
-  {
-      st->key ^= Zobrist::enpassant[file_of(st->epSquare)];
-      st->epSquare = SQ_NONE;
-  }
-
-  st->key ^= Zobrist::side;
-  prefetch(TT.first_entry(st->key));
-
-  ++st->rule50;
-  st->pliesFromNull = 0;
-
-  sideToMove = ~sideToMove;
-
-  set_check_info(st);
-
-  assert(pos_is_ok());
-}
-
-void Position::undo_null_move() {
-
-  assert(!checkers());
-
-  st = st->previous;
-  sideToMove = ~sideToMove;
-}
-
-
 /// Position::key_after() computes the new hash key after the given move. Needed
 /// for speculative prefetch. It doesn't recognize special moves like castling,
 /// en-passant and promotions.
