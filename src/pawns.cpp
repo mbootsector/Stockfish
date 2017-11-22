@@ -32,7 +32,10 @@ namespace {
   #define S(mg, eg) make_score(mg, eg)
 
   // Isolated pawn penalty
-  const Score Isolated = S(13, 18);
+  const Score Isolated[2][2] = {
+    { S(13, 18), S(50, 20) },
+    { S(13, 18), S(13, 18) }
+  };
 
   // Backward pawn penalty
   const Score Backward = S(24, 12);
@@ -105,6 +108,7 @@ namespace {
     bool opposed, backward;
     Score score = SCORE_ZERO;
     const Square* pl = pos.squares<PAWN>(Us);
+    int isolatedCount = 0;
 
     Bitboard ourPawns   = pos.pieces(  Us, PAWN);
     Bitboard theirPawns = pos.pieces(Them, PAWN);
@@ -177,7 +181,7 @@ namespace {
             score += Connected[opposed][!!phalanx][popcount(supported)][relative_rank(Us, s)];
 
         else if (!neighbours)
-            score -= Isolated, e->weakUnopposed[Us] += !opposed;
+            score -= Isolated[!!(e->passedPawns[Us] & s)][++isolatedCount == 2], e->weakUnopposed[Us] += !opposed;
 
         else if (backward)
             score -= Backward, e->weakUnopposed[Us] += !opposed;
