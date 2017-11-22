@@ -33,7 +33,7 @@ namespace {
 
   // Isolated pawn penalty
   const Score Isolated[2][2] = {
-    { S(13, 18), S(50, 20) },
+    { S(13, 18), S(30, 30) },
     { S(13, 18), S(13, 18) }
   };
 
