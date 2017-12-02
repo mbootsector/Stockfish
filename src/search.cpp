@@ -840,6 +840,7 @@ moves_loop: // When in check search starts from here
       }
       else if (    givesCheck
                && !moveCountPruning
+               && depth >= 3 * ONE_PLY
                &&  pos.see_ge(move))
           extension = ONE_PLY;
 
