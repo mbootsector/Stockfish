@@ -663,12 +663,21 @@ namespace {
             Square blockSq = s + Up;
 
             // Adjust bonus based on the king's proximity
-            ebonus +=  distance(pos.square<KING>(Them), blockSq) * 5 * rr
-                     - distance(pos.square<KING>(  Us), blockSq) * 2 * rr;
+            int penalty = distance(pos.square<KING>(  Us), blockSq) * 2 * rr;
 
             // If blockSq is not the queening square then consider also a second push
             if (relative_rank(Us, blockSq) != RANK_8)
-                ebonus -= distance(pos.square<KING>(Us), blockSq + Up) * rr;
+                penalty += distance(pos.square<KING>(Us), blockSq + Up) * rr;
+
+            Bitboard defended =  (attackedBy[Us][ALL_PIECES] & ~attackedBy[Them][ALL_PIECES])
+                               | (attackedBy2[Us] & ~attackedBy2[Them]);
+            if ((defended & s) && pos.empty(blockSq))
+            {
+                penalty /= 2;
+                mbonus += rr;
+            }
+
+            ebonus += distance(pos.square<KING>(Them), blockSq) * 5 * rr - penalty;
 
             // If the pawn is free to advance, then increase the bonus
             if (pos.empty(blockSq))
