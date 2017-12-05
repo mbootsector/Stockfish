@@ -119,6 +119,9 @@ namespace {
     // pawn or squares attacked by 2 pawns are not explicitly added.
     Bitboard attackedBy2[COLOR_NB];
 
+    // Diagonals for attacks on enemy rooks.
+    Bitboard diagonalAttacksOnRooks[COLOR_NB];
+
     // kingRing[color] is the zone around the king which is considered
     // by the king safety evaluation. This consists of the squares directly
     // adjacent to the king, and (only for a king on its first rank) the
@@ -229,6 +232,7 @@ namespace {
   const Score ThreatByAttackOnQueen = S( 38, 22);
   const Score HinderPassedPawn      = S(  7,  0);
   const Score TrappedBishopA1H1     = S( 50, 50);
+  const Score ForkedKingAndMajor    = S(150,150);
 
   #undef S
   #undef V
@@ -271,6 +275,7 @@ namespace {
 
     attackedBy2[Us]            = b & attackedBy[Us][PAWN];
     attackedBy[Us][ALL_PIECES] = b | attackedBy[Us][PAWN];
+    diagonalAttacksOnRooks[Us] = 0;
 
     // Init our king safety tables only if we are going to use them
     if (pos.non_pawn_material(Them) >= RookValueMg + KnightValueMg)
@@ -313,6 +318,9 @@ namespace {
         b = Pt == BISHOP ? attacks_bb<BISHOP>(s, pos.pieces() ^ pos.pieces(Us, QUEEN))
           : Pt ==   ROOK ? attacks_bb<  ROOK>(s, pos.pieces() ^ pos.pieces(Us, ROOK, QUEEN))
                          : pos.attacks_from<Pt>(s);
+
+        if (Pt == ROOK)
+            diagonalAttacksOnRooks[Us] |= attacks_bb<BISHOP>(s, pos.pieces());
 
         if (pos.pinned_pieces(Us) & s)
             b &= LineBB[pos.square<KING>(Us)][s];
@@ -480,8 +488,13 @@ namespace {
             score -= OtherCheck;
 
         // Enemy bishops safe and other checks
-        if (b2 & attackedBy[Them][BISHOP] & safe)
+        b = b2 & attackedBy[Them][BISHOP] & safe;
+        if (b)
+        {
             kingDanger += BishopCheck;
+            if ((attackedBy[Us][QUEEN_DIAGONAL] | diagonalAttacksOnRooks[Us]) & b)
+                score -= ForkedKingAndMajor;
+        }
 
         else if (b2 & attackedBy[Them][BISHOP] & other)
             score -= OtherCheck;
