@@ -232,7 +232,7 @@ namespace {
   const Score ThreatByAttackOnQueen = S( 38, 22);
   const Score HinderPassedPawn      = S(  7,  0);
   const Score TrappedBishopA1H1     = S( 50, 50);
-  const Score ForkedKingAndMajor    = S(150,150);
+  const Score ForkedKingAndMajor    = S( 50, 50);
 
   #undef S
   #undef V
