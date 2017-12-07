@@ -108,6 +108,7 @@ namespace {
     Material::Entry* me;
     Pawns::Entry* pe;
     Bitboard mobilityArea[COLOR_NB];
+    Bitboard badBishopSquares[COLOR_NB];
     Score mobility[COLOR_NB] = { SCORE_ZERO, SCORE_ZERO };
 
     // attackedBy[color][piece type] is a bitboard representing all squares
@@ -229,6 +230,7 @@ namespace {
   const Score ThreatByAttackOnQueen = S( 38, 22);
   const Score HinderPassedPawn      = S(  7,  0);
   const Score TrappedBishopA1H1     = S( 50, 50);
+  const Score BadBishopSquare       = S( 40, 40);
 
   #undef S
   #undef V
@@ -246,6 +248,59 @@ namespace {
   const Value LazyThreshold  = Value(1500);
   const Value SpaceThreshold = Value(12222);
 
+  // Data and functions for blocked bishops.
+  const Bitboard WestBlockers[COLOR_NB] = {
+    0x000002060eff00,  // Rank2BB | SQ_B5 | SQ_B4 | SQ_B3 | SQ_C4 | SQ_C3 | SQ_D3
+    0xff0e0602000000,  // Rank7BB | SQ_B4 | SQ_B5 | SQ_B6 | SQ_C5 | SQ_C6 | SQ_D6,
+  };
+
+  const Bitboard EastBlockers[COLOR_NB] = {
+    0x0000406070ff00, // Rank2BB | SQ_G5 | SQ_G4 | SQ_G3 | SQ_F4 | SQ_F3 | SQ_E3,
+    0xff706040000000  // Rank7BB | SQ_G4 | SQ_G5 | SQ_G6 | SQ_F5 | SQ_F6 | SQ_E6
+  };
+
+  const Bitboard notAFile = 0xfefefefefefefefe; // ~0x0101010101010101
+  const Bitboard notHFile = 0x7f7f7f7f7f7f7f7f; // ~0x8080808080808080
+
+  Bitboard noEaOccl(Bitboard gen, Bitboard pro) {
+     pro &= notAFile;
+     gen |= pro & (gen <<  9);
+     pro &=       (pro <<  9);
+     gen |= pro & (gen << 18);
+     pro &=       (pro << 18);
+     gen |= pro & (gen << 36);
+     return gen;
+  }
+   
+  Bitboard soEaOccl(Bitboard gen, Bitboard pro) {
+     pro &= notAFile;
+     gen |= pro & (gen >>  7);
+     pro &=       (pro >>  7);
+     gen |= pro & (gen >> 14);
+     pro &=       (pro >> 14);
+     gen |= pro & (gen >> 28);
+     return gen;
+  }
+
+  Bitboard soWeOccl(Bitboard gen, Bitboard pro) {
+     pro &= notHFile;
+     gen |= pro & (gen >>  9);
+     pro &=       (pro >>  9);
+     gen |= pro & (gen >> 18);
+     pro &=       (pro >> 18);
+     gen |= pro & (gen >> 36);
+     return gen;
+  }
+   
+  Bitboard noWeOccl(Bitboard gen, Bitboard pro) {
+     pro &= notHFile;
+     gen |= pro & (gen <<  7);
+     pro &=       (pro <<  7);
+     gen |= pro & (gen << 14);
+     pro &=       (pro << 14);
+     gen |= pro & (gen << 28);
+     return gen;
+  }
 
   // initialize() computes king and pawn attacks, and the king ring bitboard
   // for a given color. This is done at the beginning of the evaluation.
@@ -264,6 +319,20 @@ namespace {
     // Squares occupied by those pawns, by our king, or controlled by enemy pawns
     // are excluded from the mobility area.
     mobilityArea[Us] = ~(b | pos.square<KING>(Us) | pe->pawn_attacks(Them));
+
+    // Set up squares which are bad for our bishops.
+    // An example is Bishop on b2, unmovable pawn on c3, this is considered bad.
+    // However if the bishop is on d2, it's not as bad, and this is why we test for
+    // the direction of attack.
+    Bitboard bb = 0, pro = ~(pos.pieces() ^ pos.pieces(Us));
+
+    b = pos.pieces(Us, PAWN) & shift<Down>(pos.pieces(PAWN)) & WestBlockers[Us];
+    bb |= Us == WHITE ? soWeOccl(b, pro) : noWeOccl(b, pro);
+
+    b = pos.pieces(Us, PAWN) & shift<Down>(pos.pieces(PAWN)) & EastBlockers[Us];
+    bb |= Us == WHITE ? soEaOccl(b, pro) : noEaOccl(b, pro);
+
+    badBishopSquares[Us] = bb;
 
     // Initialise the attack bitboards with the king and pawn information
     b = attackedBy[Us][KING] = pos.attacks_from<KING>(pos.square<KING>(Us));
@@ -301,6 +370,7 @@ namespace {
     Bitboard b, bb;
     Square s;
     Score score = SCORE_ZERO;
+    int mob;
 
     attackedBy[Us][Pt] = 0;
 
@@ -330,7 +400,10 @@ namespace {
             kingAdjacentZoneAttacksCount[Us] += popcount(b & attackedBy[Them][KING]);
         }
 
-        int mob = popcount(b & mobilityArea[Us]);
+        if (Pt == BISHOP)
+            mob = popcount(b & mobilityArea[Us] & ~badBishopSquares[Us]);
+        else 
+            mob = popcount(b & mobilityArea[Us]);
 
         mobility[Us] += MobilityBonus[Pt - 2][mob];
 
@@ -357,6 +430,9 @@ namespace {
 
             if (Pt == BISHOP)
             {
+                if (badBishopSquares[Us] & s)
+                    score -= BadBishopSquare;
+
                 // Penalty for pawns on the same color square as the bishop
                 score -= BishopPawns * pe->pawns_on_same_color_squares(Us, s);
 
