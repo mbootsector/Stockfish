@@ -23,6 +23,7 @@
 #include <cstring>   // For std::memset
 #include <iomanip>
 #include <sstream>
+#include <iostream>
 
 #include "bitboard.h"
 #include "evaluate.h"
@@ -230,7 +231,7 @@ namespace {
   const Score ThreatByAttackOnQueen = S( 38, 22);
   const Score HinderPassedPawn      = S(  7,  0);
   const Score TrappedBishopA1H1     = S( 50, 50);
-  const Score BadBishopSquare       = S( 40, 40);
+  const Score BadBishopSquare       = S( 14, 19);
 
   #undef S
   #undef V
@@ -250,13 +251,13 @@ namespace {
 
   // Data and functions for blocked bishops.
   const Bitboard WestBlockers[COLOR_NB] = {
-    0x000002060eff00,  // Rank2BB | SQ_B5 | SQ_B4 | SQ_B3 | SQ_C4 | SQ_C3 | SQ_D3
-    0xff0e0602000000,  // Rank7BB | SQ_B4 | SQ_B5 | SQ_B6 | SQ_C5 | SQ_C6 | SQ_D6,
+    0x000002061eff00,  // Rank2BB | SQ_B5 | SQ_B4 | SQ_B3 | SQ_C4 | SQ_C3 | SQ_D3 | SQ_E3
+    0xff1e0602000000,  // Rank7BB | SQ_B4 | SQ_B5 | SQ_B6 | SQ_C5 | SQ_C6 | SQ_D6 | SQ_E6,
   };
 
   const Bitboard EastBlockers[COLOR_NB] = {
-    0x0000406070ff00, // Rank2BB | SQ_G5 | SQ_G4 | SQ_G3 | SQ_F4 | SQ_F3 | SQ_E3,
-    0xff706040000000  // Rank7BB | SQ_G4 | SQ_G5 | SQ_G6 | SQ_F5 | SQ_F6 | SQ_E6
+    0x0000406078ff00, // Rank2BB | SQ_G5 | SQ_G4 | SQ_G3 | SQ_F4 | SQ_F3 | SQ_E3 | SQ_D3,
+    0xff786040000000  // Rank7BB | SQ_G4 | SQ_G5 | SQ_G6 | SQ_F5 | SQ_F6 | SQ_E6 | SQ_D6
   };
 
   const Bitboard notAFile = 0xfefefefefefefefe; // ~0x0101010101010101
@@ -325,11 +326,13 @@ namespace {
     // However if the bishop is on d2, it's not as bad, and this is why we test for
     // the direction of attack.
     Bitboard bb = 0, pro = ~(pos.pieces() ^ pos.pieces(Us));
+    Bitboard candidates =  (pos.pieces(Us, PAWN) & shift<Down>(pos.pieces(PAWN)))
+                         | (pos.pieces(Them, PAWN) & pe->pawn_attacks(Them));
 
-    b = pos.pieces(Us, PAWN) & shift<Down>(pos.pieces(PAWN)) & WestBlockers[Us];
+    b = candidates & WestBlockers[Us];
     bb |= Us == WHITE ? soWeOccl(b, pro) : noWeOccl(b, pro);
 
-    b = pos.pieces(Us, PAWN) & shift<Down>(pos.pieces(PAWN)) & EastBlockers[Us];
+    b = candidates & EastBlockers[Us];
     bb |= Us == WHITE ? soEaOccl(b, pro) : noEaOccl(b, pro);
 
     badBishopSquares[Us] = bb;
@@ -430,8 +433,9 @@ namespace {
 
             if (Pt == BISHOP)
             {
+                // Penalty for bishop on a bad square. Larger penalty if we have the bishop pair.
                 if (badBishopSquares[Us] & s)
-                    score -= BadBishopSquare;
+                    score -= BadBishopSquare * (pos.count<BISHOP>(Us) > 1 ? 3 : 1);
 
                 // Penalty for pawns on the same color square as the bishop
                 score -= BishopPawns * pe->pawns_on_same_color_squares(Us, s);
