@@ -214,8 +214,8 @@ namespace {
 
   // Assorted bonuses and penalties used by evaluation
   const Score MinorBehindPawn       = S( 16,  0);
-  const Score BishopPawns           = S(  8, 12);
-  const Score BadBishopSquare       = S( 14, 19);
+  Score BishopPawns                 = S(  8, 12);
+  Score BadBishopSquare             = S( 14, 19);
   const Score RookOnPawn            = S(  8, 24);
   const Score TrappedRook           = S( 92,  0);
   const Score WeakQueen             = S( 50, 10);
@@ -230,6 +230,8 @@ namespace {
   const Score ThreatByAttackOnQueen = S( 38, 22);
   const Score HinderPassedPawn      = S(  7,  0);
   const Score TrappedBishopA1H1     = S( 50, 50);
+
+  TUNE(SetRange(-100, 100), BishopPawns, BadBishopSquare);
 
   #undef S
   #undef V
