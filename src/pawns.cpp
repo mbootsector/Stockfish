@@ -94,13 +94,13 @@ namespace {
 
   // Data and functions for blocked bishops.
   const Bitboard WestBlockers[COLOR_NB] = {
-    0x000002061eff00,  // Rank2BB | SQ_B5 | SQ_B4 | SQ_B3 | SQ_C4 | SQ_C3 | SQ_D3 | SQ_E3
-    0xff1e0602000000,  // Rank7BB | SQ_B4 | SQ_B5 | SQ_B6 | SQ_C5 | SQ_C6 | SQ_D6 | SQ_E6,
+    0x0103070f1fff00,  // Rank2BB | triangle
+    0xff1f0f07030100,  // Rank7BB | triangle
   };
 
   const Bitboard EastBlockers[COLOR_NB] = {
-    0x0000406078ff00, // Rank2BB | SQ_G5 | SQ_G4 | SQ_G3 | SQ_F4 | SQ_F3 | SQ_E3 | SQ_D3,
-    0xff786040000000  // Rank7BB | SQ_G4 | SQ_G5 | SQ_G6 | SQ_F5 | SQ_F6 | SQ_E6 | SQ_D6
+    0x80c0e0f0f8ff00, // Rank2BB | triangle
+    0xfff8f0e0c08000  // Rank7BB | triangle
   };
 
   const Bitboard notAFile = 0xfefefefefefefefe; // ~0x0101010101010101
