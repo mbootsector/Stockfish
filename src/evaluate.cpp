@@ -108,6 +108,7 @@ namespace {
     Material::Entry* me;
     Pawns::Entry* pe;
     Bitboard mobilityArea[COLOR_NB];
+    Bitboard badBishopSquares[COLOR_NB];
     Score mobility[COLOR_NB] = { SCORE_ZERO, SCORE_ZERO };
 
     // attackedBy[color][piece type] is a bitboard representing all squares
@@ -213,8 +214,8 @@ namespace {
 
   // Assorted bonuses and penalties used by evaluation
   const Score MinorBehindPawn       = S( 16,  0);
-  const Score BishopPawns           = S(  8, 12);
-  const Score LongRangedBishop      = S( 22,  0);
+  const Score BishopPawns           = S(  8, 10);
+  const Score BadBishopSquare       = S( 14, 17);
   const Score RookOnPawn            = S(  8, 24);
   const Score TrappedRook           = S( 92,  0);
   const Score WeakQueen             = S( 50, 10);
@@ -301,6 +302,7 @@ namespace {
     Bitboard b, bb;
     Square s;
     Score score = SCORE_ZERO;
+    int mob;
 
     attackedBy[Us][Pt] = 0;
 
@@ -330,8 +332,11 @@ namespace {
             kingAdjacentZoneAttacksCount[Us] += popcount(b & attackedBy[Them][KING]);
         }
 
-        int mob = popcount(b & mobilityArea[Us]);
-
+        if (Pt == BISHOP)
+            mob = popcount(b & mobilityArea[Us] & ~pe->bad_bishop_squares(Us));
+        else 
+            mob = popcount(b & mobilityArea[Us]);
+ 
         mobility[Us] += MobilityBonus[Pt - 2][mob];
 
         // Bonus for this piece as a king protector
@@ -357,12 +362,12 @@ namespace {
 
             if (Pt == BISHOP)
             {
-                // Penalty for pawns on the same color square as the bishop
-                score -= BishopPawns * pe->pawns_on_same_color_squares(Us, s);
+                // Penalty for bishop on a bad square. Larger penalty if we have the bishop pair.
+                if (pe->bad_bishop_squares(Us) & s)
+                    score -= BadBishopSquare;
 
-                // Bonus for bishop on a long diagonal which can "see" both center squares
-                if (more_than_one(Center & (attacks_bb<BISHOP>(s, pos.pieces(PAWN)) | s)))
-                    score += LongRangedBishop;
+                 // Penalty for pawns on the same color square as the bishop
+                score -= BishopPawns * pe->pawns_on_same_color_squares(Us, s);
             }
 
             // An important Chess960 pattern: A cornered bishop blocked by a friendly
