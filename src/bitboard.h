@@ -161,6 +161,17 @@ constexpr Bitboard shift(Bitboard b) {
 }
 
 
+/// Occluded fills
+
+const Bitboard notAFile = 0xfefefefefefefefe; // ~0x0101010101010101
+const Bitboard notHFile = 0x7f7f7f7f7f7f7f7f; // ~0x8080808080808080
+
+Bitboard noEaOccl(Bitboard gen, Bitboard pro);
+Bitboard soEaOccl(Bitboard gen, Bitboard pro);
+Bitboard soWeOccl(Bitboard gen, Bitboard pro);
+Bitboard noWeOccl(Bitboard gen, Bitboard pro);
+
+
 /// adjacent_files_bb() returns a bitboard representing all the squares on the
 /// adjacent files of the given one.
 

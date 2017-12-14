@@ -23,6 +23,7 @@
 #include <cstring>   // For std::memset
 #include <iomanip>
 #include <sstream>
+#include <iostream>
 
 #include "bitboard.h"
 #include "evaluate.h"
@@ -108,7 +109,6 @@ namespace {
     Material::Entry* me;
     Pawns::Entry* pe;
     Bitboard mobilityArea[COLOR_NB];
-    Bitboard badBishopSquares[COLOR_NB];
     Score mobility[COLOR_NB] = { SCORE_ZERO, SCORE_ZERO };
 
     // attackedBy[color][piece type] is a bitboard representing all squares
@@ -215,7 +215,7 @@ namespace {
   // Assorted bonuses and penalties used by evaluation
   const Score MinorBehindPawn       = S( 16,  0);
   const Score BishopPawns           = S(  8, 12);
-  const Score BadBishopSquare       = S( 44, 44);
+  const Score BadBishop             = S( 29, 29);
   const Score RookOnPawn            = S(  8, 24);
   const Score TrappedRook           = S( 92,  0);
   const Score WeakQueen             = S( 50, 10);
@@ -363,8 +363,19 @@ namespace {
             if (Pt == BISHOP)
             {
                 // Penalty for bishop on a bad square. Larger penalty if we have the bishop pair.
-                if (pe->bad_bishop_squares(Us) & s)
-                    score -= BadBishopSquare;
+                if (pe->bad_bishop_squares(Us) & s) {
+                    score -= BadBishop;
+
+                    // If the bishop can't move to a better square, it is very bad.
+                    b  &= ~pos.pieces(Us);
+                    bb  = noWeOccl(b, ~pos.pieces());
+                    bb |= noEaOccl(b, ~pos.pieces());
+                    bb |= soWeOccl(b, ~pos.pieces());
+                    bb |= soEaOccl(b, ~pos.pieces());
+
+                    if ((bb & ~pe->bad_bishop_squares(Us)) == 0)
+                        score -= BadBishop * 2;
+                }
 
                  // Penalty for pawns on the same color square as the bishop
                 score -= BishopPawns * pe->pawns_on_same_color_squares(Us, s);

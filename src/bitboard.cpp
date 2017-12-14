@@ -324,3 +324,46 @@ namespace {
     }
   }
 }
+
+
+/// Occluded fills
+
+Bitboard noEaOccl(Bitboard gen, Bitboard pro) {
+   pro &= notAFile;
+   gen |= pro & (gen <<  9);
+   pro &=       (pro <<  9);
+   gen |= pro & (gen << 18);
+   pro &=       (pro << 18);
+   gen |= pro & (gen << 36);
+   return gen;
+}
+ 
+Bitboard soEaOccl(Bitboard gen, Bitboard pro) {
+   pro &= notAFile;
+   gen |= pro & (gen >>  7);
+   pro &=       (pro >>  7);
+   gen |= pro & (gen >> 14);
+   pro &=       (pro >> 14);
+   gen |= pro & (gen >> 28);
+   return gen;
+}
+
+Bitboard soWeOccl(Bitboard gen, Bitboard pro) {
+   pro &= notHFile;
+   gen |= pro & (gen >>  9);
+   pro &=       (pro >>  9);
+   gen |= pro & (gen >> 18);
+   pro &=       (pro >> 18);
+   gen |= pro & (gen >> 36);
+   return gen;
+}
+ 
+Bitboard noWeOccl(Bitboard gen, Bitboard pro) {
+   pro &= notHFile;
+   gen |= pro & (gen <<  7);
+   pro &=       (pro <<  7);
+   gen |= pro & (gen << 14);
+   pro &=       (pro << 14);
+   gen |= pro & (gen << 28);
+   return gen;
+}

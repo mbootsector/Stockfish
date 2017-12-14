@@ -91,65 +91,21 @@ namespace {
   #undef S
   #undef V
 
-
-  // Data and functions for blocked bishops.
+  // Areas for bishop blocking pawns.
   const Bitboard WestBlockers[COLOR_NB] = {
-    0x0103070f1fff00,  // Rank2BB | triangle
-    0xff1f0f07030100,  // Rank7BB | triangle
+    0x0103070f1fff00,  // Rank2BB | A3 - A7 - E3 triangle
+    0xff1f0f07030100,  // Rank7BB | A6 - A2 - E6 triangle
   };
 
   const Bitboard EastBlockers[COLOR_NB] = {
-    0x80c0e0f0f8ff00, // Rank2BB | triangle
-    0xfff8f0e0c08000  // Rank7BB | triangle
+    0x80c0e0f0f8ff00,  // Rank2BB | H3 - H7 - D3 triangle
+    0xfff8f0e0c08000   // Rank7BB | H6 - H2 - D6 triangle
   };
-
-  const Bitboard notAFile = 0xfefefefefefefefe; // ~0x0101010101010101
-  const Bitboard notHFile = 0x7f7f7f7f7f7f7f7f; // ~0x8080808080808080
-
-  Bitboard noEaOccl(Bitboard gen, Bitboard pro) {
-     pro &= notAFile;
-     gen |= pro & (gen <<  9);
-     pro &=       (pro <<  9);
-     gen |= pro & (gen << 18);
-     pro &=       (pro << 18);
-     gen |= pro & (gen << 36);
-     return gen;
-  }
-   
-  Bitboard soEaOccl(Bitboard gen, Bitboard pro) {
-     pro &= notAFile;
-     gen |= pro & (gen >>  7);
-     pro &=       (pro >>  7);
-     gen |= pro & (gen >> 14);
-     pro &=       (pro >> 14);
-     gen |= pro & (gen >> 28);
-     return gen;
-  }
-
-  Bitboard soWeOccl(Bitboard gen, Bitboard pro) {
-     pro &= notHFile;
-     gen |= pro & (gen >>  9);
-     pro &=       (pro >>  9);
-     gen |= pro & (gen >> 18);
-     pro &=       (pro >> 18);
-     gen |= pro & (gen >> 36);
-     return gen;
-  }
-   
-  Bitboard noWeOccl(Bitboard gen, Bitboard pro) {
-     pro &= notHFile;
-     gen |= pro & (gen <<  7);
-     pro &=       (pro <<  7);
-     gen |= pro & (gen << 14);
-     pro &=       (pro << 14);
-     gen |= pro & (gen << 28);
-     return gen;
-  }
 
 
   template<Color Us>
-  void setBadBishopSquares(const Position& pos, Pawns::Entry* e)
-  {
+  void setBadBishopSquares(const Position& pos, Pawns::Entry* e) {
+
     const Color     Them = (Us == WHITE ? BLACK : WHITE);
     const Direction Down = (Us == WHITE ? SOUTH : NORTH);
 
