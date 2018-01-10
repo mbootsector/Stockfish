@@ -489,7 +489,7 @@ namespace {
         // Transform the kingDanger units into a Score, and substract it from the evaluation
         if (kingDanger > 0)
         {
-            kingDanger = std::max(1, kingDanger + mobilityDanger);
+            kingDanger = std::max(kingDanger / 2, kingDanger + mobilityDanger);
             score -= make_score(kingDanger * kingDanger / 4096, kingDanger / 16);
         }
     }
