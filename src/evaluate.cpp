@@ -616,6 +616,9 @@ namespace {
 
     score += ThreatByAttackOnQueen * popcount(b & safeThreats);
 
+    int weight = 2048 + mg_value(mobility[Us] - mobility[Them]);
+    score = make_score(mg_value(score) * weight / 2048, eg_value(score) * weight / 2048);
+
     if (T)
         Trace::add(THREAT, Us, score);
 
