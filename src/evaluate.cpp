@@ -616,7 +616,7 @@ namespace {
 
     score += ThreatByAttackOnQueen * popcount(b & safeThreats);
 
-    int weight = 2048 + mg_value(mobility[Us] - mobility[Them]);
+    int weight = 2048 + mg_value(mobility[Them] - mobility[Us]);
     score = make_score(mg_value(score) * weight / 2048, eg_value(score) * weight / 2048);
 
     if (T)
