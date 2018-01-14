@@ -705,6 +705,9 @@ namespace {
         score += make_score(mbonus, ebonus) + PassedFile[file_of(s)];
     }
 
+    int weight = 2048 + mg_value(mobility[Us] - mobility[Them]);
+    score = make_score(mg_value(score) * weight / 2048, eg_value(score) * weight / 2048);
+
     if (T)
         Trace::add(PASSED, Us, score);
 
