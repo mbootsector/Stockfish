@@ -109,6 +109,7 @@ namespace {
     Pawns::Entry* pe;
     Bitboard mobilityArea[COLOR_NB];
     Score mobility[COLOR_NB] = { SCORE_ZERO, SCORE_ZERO };
+    Score passers[COLOR_NB]  = { SCORE_ZERO, SCORE_ZERO };
 
     // attackedBy[color][piece type] is a bitboard representing all squares
     // attacked by a given color and piece type. Special "piece types" which are
@@ -489,8 +490,8 @@ namespace {
         // Transform the kingDanger units into a Score, and substract it from the evaluation
         if (kingDanger > 0)
         {
-            int mobilityDanger = mg_value(mobility[Them] - mobility[Us]);
-            kingDanger = std::max(0, kingDanger + mobilityDanger);
+            int danger = mg_value(mobility[Them] - mobility[Us] + passers[Us]);
+            kingDanger = std::max(0, kingDanger + danger);
             score -= make_score(kingDanger * kingDanger / 4096, kingDanger / 16);
         }
     }
@@ -692,9 +693,12 @@ namespace {
                     k += 4;
 
                 mbonus += k * rr, ebonus += k * rr;
+
+                passers[Us] += make_score(mbonus, ebonus);
             }
             else if (pos.pieces(Us) & blockSq)
                 mbonus += rr + r * 2, ebonus += rr + r * 2;
+
         } // rr != 0
 
         // Scale down bonus for candidate passers which need more than one
@@ -856,14 +860,15 @@ namespace {
 
     score += mobility[WHITE] - mobility[BLACK];
 
+    score +=  evaluate_passed_pawns<WHITE>()
+            - evaluate_passed_pawns<BLACK>();
+
     score +=  evaluate_king<WHITE>()
             - evaluate_king<BLACK>();
 
     score +=  evaluate_threats<WHITE>()
             - evaluate_threats<BLACK>();
 
-    score +=  evaluate_passed_pawns<WHITE>()
-            - evaluate_passed_pawns<BLACK>();
 
     if (pos.non_pawn_material() >= SpaceThreshold)
         score +=  evaluate_space<WHITE>()
