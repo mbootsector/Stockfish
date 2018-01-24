@@ -427,7 +427,7 @@ namespace {
     Score score = SCORE_ZERO;
 
     while ((s = *pl++) != SQ_NONE)
-        mobility[Us] += MobilityBonus[Pt - 2][popcount(attacksFromSquare[s] & mobilityArea[Us])] * 3 / 4;
+        mobility[Us] += MobilityBonus[Pt - 2][popcount(attacksFromSquare[s] & mobilityArea[Us])] * 5 / 4;
 
     return score;
   }
