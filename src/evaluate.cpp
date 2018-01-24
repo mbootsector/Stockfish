@@ -100,6 +100,7 @@ namespace {
     template<Color Us> Score evaluate_passed_pawns();
     template<Color Us> Score evaluate_space();
     template<Color Us, PieceType Pt> Score evaluate_pieces();
+    template<Color Us, PieceType Pt> Score evaluate_mobility();
     ScaleFactor evaluate_scale_factor(Value eg);
     Score evaluate_initiative(Value eg);
 
@@ -109,6 +110,8 @@ namespace {
     Pawns::Entry* pe;
     Bitboard mobilityArea[COLOR_NB];
     Score mobility[COLOR_NB] = { SCORE_ZERO, SCORE_ZERO };
+
+    Bitboard attacksFromSquare[SQUARE_NB];
 
     // attackedBy[color][piece type] is a bitboard representing all squares
     // attacked by a given color and piece type. Special "piece types" which are
@@ -316,6 +319,7 @@ namespace {
         if (pos.pinned_pieces(Us) & s)
             b &= LineBB[pos.square<KING>(Us)][s];
 
+        attacksFromSquare[s] = b;
         attackedBy2[Us] |= attackedBy[Us][ALL_PIECES] & b;
         attackedBy[Us][ALL_PIECES] |= attackedBy[Us][Pt] |= b;
 
@@ -328,10 +332,6 @@ namespace {
             kingAttackersWeight[Us] += KingAttackWeights[Pt];
             kingAdjacentZoneAttacksCount[Us] += popcount(b & attackedBy[Them][KING]);
         }
-
-        int mob = popcount(b & mobilityArea[Us]);
-
-        mobility[Us] += MobilityBonus[Pt - 2][mob];
 
         // Bonus for this piece as a king protector
         score += KingProtector[Pt - 2] * distance(s, pos.square<KING>(Us));
@@ -381,6 +381,8 @@ namespace {
 
         if (Pt == ROOK)
         {
+            int mob = popcount(b & mobilityArea[Us]);
+
             // Bonus for aligning with enemy pawns on the same rank/file
             if (relative_rank(Us, s) >= RANK_5)
                 score += RookOnPawn * popcount(pos.pieces(Them, PAWN) & PseudoAttacks[ROOK][s]);
@@ -411,6 +413,21 @@ namespace {
 
     if (T)
         Trace::add(Pt, Us, score);
+
+    return score;
+  }
+
+
+  template<Tracing T>  template<Color Us, PieceType Pt>
+  Score Evaluation<T>::evaluate_mobility() {
+
+    const Square* pl = pos.squares<Pt>(Us);
+
+    Square s;
+    Score score = SCORE_ZERO;
+
+    while ((s = *pl++) != SQ_NONE)
+        mobility[Us] += MobilityBonus[Pt - 2][popcount(attacksFromSquare[s] & mobilityArea[Us])];
 
     return score;
   }
@@ -853,6 +870,14 @@ namespace {
     score += evaluate_pieces<WHITE, BISHOP>() - evaluate_pieces<BLACK, BISHOP>();
     score += evaluate_pieces<WHITE, ROOK  >() - evaluate_pieces<BLACK, ROOK  >();
     score += evaluate_pieces<WHITE, QUEEN >() - evaluate_pieces<BLACK, QUEEN >();
+
+    mobilityArea[WHITE] &= ~(attackedBy2[BLACK] | (attackedBy[BLACK][ALL_PIECES] & ~attackedBy2[WHITE]));
+    mobilityArea[BLACK] &= ~(attackedBy2[WHITE] | (attackedBy[WHITE][ALL_PIECES] & ~attackedBy2[BLACK]));
+
+    score += evaluate_mobility<WHITE, KNIGHT>() - evaluate_mobility<BLACK, KNIGHT>();
+    score += evaluate_mobility<WHITE, BISHOP>() - evaluate_mobility<BLACK, BISHOP>();
+    score += evaluate_mobility<WHITE, ROOK  >() - evaluate_mobility<BLACK, ROOK  >();
+    score += evaluate_mobility<WHITE, QUEEN >() - evaluate_mobility<BLACK, QUEEN >();
 
     score += mobility[WHITE] - mobility[BLACK];
 
