@@ -492,7 +492,7 @@ namespace {
         // Transform the kingDanger units into a Score, and substract it from the evaluation
         if (kingDanger > 0)
         {
-            int mobilityDanger = mg_value(mobility[Them] - mobility[Us]);
+            int mobilityDanger = mg_value(mobility[Them] - mobility[Us]) * 5 / 4;
             kingDanger = std::max(0, kingDanger + mobilityDanger);
             score -= make_score(kingDanger * kingDanger / 4096, kingDanger / 16);
         }
@@ -856,7 +856,7 @@ namespace {
     score += evaluate_pieces<WHITE, ROOK  >() - evaluate_pieces<BLACK, ROOK  >();
     score += evaluate_pieces<WHITE, QUEEN >() - evaluate_pieces<BLACK, QUEEN >();
 
-    score += mobility[WHITE] - mobility[BLACK];
+    score += (mobility[WHITE] - mobility[BLACK]) * 3 / 4;
 
     score +=  evaluate_king<WHITE>()
             - evaluate_king<BLACK>();
