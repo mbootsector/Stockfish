@@ -23,6 +23,7 @@
 #include <cstring>   // For std::memset
 #include <iomanip>
 #include <sstream>
+#include <iostream>
 
 #include "bitboard.h"
 #include "evaluate.h"
@@ -38,6 +39,13 @@ namespace {
 
   const Bitboard KingFlank[FILE_NB] = {
     QueenSide, QueenSide, QueenSide, CenterFiles, CenterFiles, KingSide, KingSide, KingSide
+  };
+
+  const Bitboard QueenSideSmall  = FileABB | FileBBB | FileCBB;
+  const Bitboard KingSideSmall   = FileFBB | FileGBB | FileHBB;
+
+  const Bitboard KingFiles[FILE_NB] = {
+    QueenSideSmall, QueenSideSmall, QueenSideSmall, CenterFiles, CenterFiles, KingSideSmall, KingSideSmall, KingSideSmall
   };
 
   namespace Trace {
@@ -428,6 +436,8 @@ namespace {
     const Color     Them = (Us == WHITE ? BLACK : WHITE);
     const Bitboard  Camp = (Us == WHITE ? AllSquares ^ Rank6BB ^ Rank7BB ^ Rank8BB
                                         : AllSquares ^ Rank1BB ^ Rank2BB ^ Rank3BB);
+    const Bitboard  SmallCamp = (Us == WHITE ? Rank1BB | Rank2BB | Rank3BB | Rank4BB
+                                             : Rank8BB | Rank7BB | Rank6BB | Rank5BB);
 
     const Square ksq = pos.square<KING>(Us);
     Bitboard weak, b, b1, b2, safe, unsafeChecks;
@@ -482,10 +492,17 @@ namespace {
         // the square is in the attacker's mobility area.
         unsafeChecks &= mobilityArea[Them];
 
+        // Levers with major pieces behind.
+        b = KingFiles[file_of(ksq)] & SmallCamp & pos.pieces(Us, PAWN) & attackedBy[Them][PAWN];
+        Bitboard support = (Us == WHITE ? nortOccl(b, ~(pos.pieces() ^ pos.pieces(Them, ROOK, QUEEN)))
+                                        : soutOccl(b, ~(pos.pieces() ^ pos.pieces(Them, ROOK, QUEEN))))
+                         & pos.pieces(Them, ROOK, QUEEN);
+
         kingDanger +=        kingAttackersCount[Them] * kingAttackersWeight[Them]
                      + 102 * kingAdjacentZoneAttacksCount[Them]
                      + 191 * popcount(kingRing[Us] & weak)
                      + 143 * popcount(pos.pinned_pieces(Us) | unsafeChecks)
+                     +  16 * popcount(support)
                      - 848 * !pos.count<QUEEN>(Them)
                      -   9 * mg_value(score) / 8
                      +  40;

@@ -324,3 +324,22 @@ namespace {
     }
   }
 }
+
+
+Bitboard soutOccl(Bitboard gen, Bitboard pro) {
+   gen |= pro & (gen >>  8);
+   pro &=       (pro >>  8);
+   gen |= pro & (gen >> 16);
+   pro &=       (pro >> 16);
+   gen |= pro & (gen >> 32);
+   return gen;
+}
+ 
+Bitboard nortOccl(Bitboard gen, Bitboard pro) {
+   gen |= pro & (gen <<  8);
+   pro &=       (pro <<  8);
+   gen |= pro & (gen << 16);
+   pro &=       (pro << 16);
+   gen |= pro & (gen << 32);
+   return gen;
+}

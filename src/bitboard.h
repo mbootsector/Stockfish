@@ -336,4 +336,9 @@ inline Square pop_lsb(Bitboard* b) {
 inline Square frontmost_sq(Color c, Bitboard b) { return c == WHITE ? msb(b) : lsb(b); }
 inline Square  backmost_sq(Color c, Bitboard b) { return c == WHITE ? lsb(b) : msb(b); }
 
+
+Bitboard soutOccl(Bitboard gen, Bitboard pro);
+Bitboard nortOccl(Bitboard gen, Bitboard pro);
+
+
 #endif // #ifndef BITBOARD_H_INCLUDED
