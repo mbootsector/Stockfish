@@ -96,7 +96,7 @@ namespace {
   constexpr int RookSafeCheck   = 880;
   constexpr int BishopSafeCheck = 435;
   constexpr int KnightSafeCheck = 790;
-  constexpr int DangerousCheck  = 777;
+  constexpr int DangerousCheck  = 555;
 
 #define S(mg, eg) make_score(mg, eg)
 
@@ -477,7 +477,7 @@ namespace {
         Bitboard freedom =  attackedBy[Us][KING]
                           & ~(attackedBy[Them][ALL_PIECES] | pos.pieces());
 
-        if (checkers && freedom == 0)
+        if (checkers && freedom <= 1)
         {
             int attackers =  (!!(attackedBy[Us][KING] & attackedBy[Them][PAWN  ]) << 0)
                            | (!!(attackedBy[Us][KING] & attackedBy[Them][KNIGHT]) << 1)
