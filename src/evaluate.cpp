@@ -96,6 +96,7 @@ namespace {
   constexpr int RookSafeCheck   = 880;
   constexpr int BishopSafeCheck = 435;
   constexpr int KnightSafeCheck = 790;
+  constexpr int DangerousCheck  = 999;
 
 #define S(mg, eg) make_score(mg, eg)
 
@@ -430,6 +431,7 @@ namespace {
     if (kingAttackersCount[Them] > 1 - pos.count<QUEEN>(Them))
     {
         int kingDanger = 0;
+        int checkers = 0;
         unsafeChecks = 0;
 
         // Attacked squares defended at most once by our queen or king
@@ -446,29 +448,46 @@ namespace {
 
         // Enemy queen safe checks
         if ((b1 | b2) & attackedBy[Them][QUEEN] & safe & ~attackedBy[Us][QUEEN])
-            kingDanger += QueenSafeCheck;
+            kingDanger += QueenSafeCheck, checkers |= (1 << 4);
 
         b1 &= attackedBy[Them][ROOK];
         b2 &= attackedBy[Them][BISHOP];
 
         // Enemy rooks checks
         if (b1 & safe)
-            kingDanger += RookSafeCheck;
+            kingDanger += RookSafeCheck, checkers |= (1 << 3);
         else
             unsafeChecks |= b1;
 
         // Enemy bishops checks
         if (b2 & safe)
-            kingDanger += BishopSafeCheck;
+            kingDanger += BishopSafeCheck, checkers |= (1 << 2);
         else
             unsafeChecks |= b2;
 
         // Enemy knights checks
         b = pos.attacks_from<KNIGHT>(ksq) & attackedBy[Them][KNIGHT];
         if (b & safe)
-            kingDanger += KnightSafeCheck;
+            kingDanger += KnightSafeCheck, checkers |= (1 << 1);
         else
             unsafeChecks |= b;
+
+        // A check from a piece other than the piece(s) currently restricting
+        // our king is dangerous.
+        Bitboard freedom =  attackedBy[Us][KING]
+                          & ~(attackedBy[Them][ALL_PIECES] | pos.pieces());
+
+        if (checkers && freedom == 0)
+        {
+            int attackers =  (!!(attackedBy[Us][KING] & attackedBy[Them][PAWN  ]) << 0)
+                           | (!!(attackedBy[Us][KING] & attackedBy[Them][KNIGHT]) << 1)
+                           | (!!(attackedBy[Us][KING] & attackedBy[Them][BISHOP]) << 2)
+                           | (!!(attackedBy[Us][KING] & attackedBy[Them][ROOK  ]) << 3)
+                           | (!!(attackedBy[Us][KING] & attackedBy[Them][QUEEN ]) << 4);
+
+            if (attackers && (attackers ^ checkers) != 0)
+                kingDanger += DangerousCheck;
+        }
 
         // Unsafe or occupied checking squares will also be considered, as long as
         // the square is in the attacker's mobility area.
