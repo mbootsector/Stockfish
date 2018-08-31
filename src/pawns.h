@@ -63,6 +63,7 @@ struct Entry {
 
   Key key;
   Score scores[COLOR_NB];
+  Score weak[COLOR_NB];
   Bitboard passedPawns[COLOR_NB];
   Bitboard pawnAttacks[COLOR_NB];
   Bitboard pawnAttacksSpan[COLOR_NB];

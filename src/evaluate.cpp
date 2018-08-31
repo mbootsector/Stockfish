@@ -490,6 +490,10 @@ namespace {
             kingDanger = std::max(0, kingDanger + mobilityDanger);
             score -= make_score(kingDanger * kingDanger / 4096, kingDanger / 16);
         }
+
+        // Focus on pawnstructure when king is safe.
+        if (kingDanger < 20)
+            score -= pe->weak[Us];
     }
 
     // Penalty when our king is on a pawnless flank
