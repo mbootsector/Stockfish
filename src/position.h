@@ -168,6 +168,8 @@ public:
   bool pos_is_ok() const;
   void flip();
 
+  void movelist();
+
   // Used by NNUE
   StateInfo* state() const;
   const EvalList* eval_list() const;
