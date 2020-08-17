@@ -1400,12 +1400,10 @@ void Position::movelist() {
 
   StateInfo st2;
 
-  sync_cout << std::fixed << std::setprecision(2);
-
   for (const auto& m : MoveList<LEGAL>(*this))
   {
       do_move(m, st2);
-      Value v = Eval::evaluate(*this);
+      Value v = -Eval::evaluate(*this);
       sync_cout << UCI::move(m, false) << ": " << UCI::value(v) << sync_endl;
       undo_move(m);
   }
