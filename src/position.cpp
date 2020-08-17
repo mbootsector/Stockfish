@@ -1398,13 +1398,17 @@ bool Position::pos_is_ok() const {
 
 void Position::movelist() {
 
-  StateInfo st2;
+  Position p;
 
   for (const auto& m : MoveList<LEGAL>(*this))
   {
-      do_move(m, st2);
-      Value v = -Eval::evaluate(*this);
+      do_move(m, *st);
+
+      StateListPtr states(new std::deque<StateInfo>(1));
+      p.set(fen(), false, &states->back(), Threads.main());
+      Value v = p.side_to_move() == WHITE ? Eval::evaluate(p) : -Eval::evaluate(p);
       sync_cout << UCI::move(m, false) << ": " << UCI::value(v) << sync_endl;
+
       undo_move(m);
   }
 }
