@@ -68,11 +68,8 @@ namespace {
     return Value(223 * (d - improving));
   }
 
-  // Reductions lookup table, initialized at startup
-  int Reductions[MAX_MOVES]; // [depth or moveNumber]
-
-  Depth reduction(bool i, Depth d, int mn) {
-    int r = Reductions[d] * Reductions[mn];
+  Depth reduction(Thread* thisThread, bool i, Depth d, int mn) {
+    int r = thisThread->reductions[d] * thisThread->reductions[mn];
     return (r + 509) / 1024 + (!i && r > 894);
   }
 
@@ -189,11 +186,7 @@ namespace {
 
 /// Search::init() is called at startup to initialize various lookup tables
 
-void Search::init() {
-
-  for (int i = 1; i < MAX_MOVES; ++i)
-      Reductions[i] = int((22.0 + std::log(Threads.size())) * std::log(i));
-}
+void Search::init() {}
 
 
 /// Search::clear() resets search state to its initial value
@@ -1016,7 +1009,7 @@ moves_loop: // When in check, search starts from here
           moveCountPruning = moveCount >= futility_move_count(improving, depth);
 
           // Reduced depth of the next LMR search
-          int lmrDepth = std::max(newDepth - reduction(improving, depth, moveCount), 0);
+          int lmrDepth = std::max(newDepth - reduction(thisThread, improving, depth, moveCount), 0);
 
           if (   !captureOrPromotion
               && !givesCheck)
@@ -1155,7 +1148,7 @@ moves_loop: // When in check, search starts from here
               || cutNode
               || thisThread->ttHitAverage < 427 * TtHitAverageResolution * TtHitAverageWindow / 1024))
       {
-          Depth r = reduction(improving, depth, moveCount);
+          Depth r = reduction(thisThread, improving, depth, moveCount);
 
           // Decrease reduction if the ttHit running average is large
           if (thisThread->ttHitAverage > 509 * TtHitAverageResolution * TtHitAverageWindow / 1024)

@@ -19,6 +19,7 @@
 #include <cassert>
 
 #include <algorithm> // For std::count
+#include <cmath>
 #include "movegen.h"
 #include "search.h"
 #include "thread.h"
@@ -68,6 +69,10 @@ void Thread::clear() {
                       h->fill(0);
           continuationHistory[inCheck][c][NO_PIECE][0]->fill(Search::CounterMovePruneThreshold - 1);
       }
+
+  double factor = (1.5 + double(idx)/double(Threads.size()));
+  for (int i = 1; i < MAX_MOVES; ++i)
+      reductions[i] = int((22.0 + factor * std::log(Threads.size())) * std::log(i));
 }
 
 

@@ -73,6 +73,8 @@ public:
   CapturePieceToHistory captureHistory;
   ContinuationHistory continuationHistory[2][2];
   Score contempt;
+  // Reductions lookup table, initialized at startup
+  int reductions[MAX_MOVES]; // [depth or moveNumber]
 };
 
 
